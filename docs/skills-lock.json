@@ -1,0 +1,112 @@
+{
+  "scope": "repository",
+  "notes": [
+    "verification-before-completion/LICENSE copied from the pinned upstream repository root.",
+    "Playwright wrapper resolves its npm CLI dependency at runtime; this manifest pins skill files only."
+  ],
+  "upstream_skill_md_modified": false,
+  "checked_on": "2026-09-18",
+  "schema_version": 1,
+  "skills": [
+    {
+      "local_path": ".claude/skills/doc-coauthoring",
+      "source_url": "https://github.com/anthropics/skills/tree/34040c9c568585f6929bedeaad110ad08f079624/skills/doc-coauthoring",
+      "repository": "anthropics/skills",
+      "revision": "34040c9c568585f6929bedeaad110ad08f079624",
+      "files": [
+        {
+          "path": ".claude/skills/doc-coauthoring/SKILL.md",
+          "sha256": "2e47d78846faeea4a56e9809c52700087a15a2155a3f293a3efbaded81398ef4"
+        }
+      ],
+      "tool": "Claude Code",
+      "source_path": "skills/doc-coauthoring",
+      "name": "doc-coauthoring"
+    },
+    {
+      "local_path": ".agents/skills/frontend-design",
+      "source_url": "https://github.com/anthropics/skills/tree/34040c9c568585f6929bedeaad110ad08f079624/skills/frontend-design",
+      "repository": "anthropics/skills",
+      "revision": "34040c9c568585f6929bedeaad110ad08f079624",
+      "files": [
+        {
+          "path": ".agents/skills/frontend-design/LICENSE.txt",
+          "sha256": "0d542e0c8804e39aa7f37eb00da5a762149dc682d7829451287e11b938e94594"
+        },
+        {
+          "path": ".agents/skills/frontend-design/SKILL.md",
+          "sha256": "d91970639e9f5c37682ac7ab60094d35f1c7c1f38d731bd56396563aee10c1d3"
+        }
+      ],
+      "tool": "Codex",
+      "source_path": "skills/frontend-design",
+      "name": "frontend-design"
+    },
+    {
+      "local_path": ".agents/skills/playwright",
+      "source_url": "https://github.com/openai/skills/tree/49f948faa9258a0c61caceaf225e179651397431/skills/.curated/playwright",
+      "repository": "openai/skills",
+      "revision": "49f948faa9258a0c61caceaf225e179651397431",
+      "files": [
+        {
+          "path": ".agents/skills/playwright/agents/openai.yaml",
+          "sha256": "ddda43720fc566fffa45264be8f17f7745a3cee28d5245d41d3b963bc9967230"
+        },
+        {
+          "path": ".agents/skills/playwright/assets/playwright-small.svg",
+          "sha256": "f1d213c0f76735d8272c3d3e9fbf71fe7b894e2d1588907044c780f2c33a9732"
+        },
+        {
+          "path": ".agents/skills/playwright/assets/playwright.png",
+          "sha256": "521669f088c838196c6c852ccc9abdd7234d8f37fc9a8a7a9af7db2d50193381"
+        },
+        {
+          "path": ".agents/skills/playwright/LICENSE.txt",
+          "sha256": "9a7110fc2d2f964038e5dc49128f908f29f47a574c961cba16085914e879cbda"
+        },
+        {
+          "path": ".agents/skills/playwright/NOTICE.txt",
+          "sha256": "417d5d3372914ecfd9fe102ac1d7dc2119253209f9718d6c222f616876c1904b"
+        },
+        {
+          "path": ".agents/skills/playwright/references/cli.md",
+          "sha256": "7c069a8206ba20b9ddbdc42436b04de30bb3aa4a825ba98680757ee62e954900"
+        },
+        {
+          "path": ".agents/skills/playwright/references/workflows.md",
+          "sha256": "a2b5835a00ebee3906c146adf7f764f7718ea3f89a8702d86eaa135dfe0fc8c2"
+        },
+        {
+          "path": ".agents/skills/playwright/scripts/playwright_cli.sh",
+          "sha256": "aa3fdff5d0e4556177f4dfd5f04117e772aa54f94b6a2e34b6c0edf629c6b9b5"
+        },
+        {
+          "path": ".agents/skills/playwright/SKILL.md",
+          "sha256": "0ffaabcc8e0990627c4725f18bf1c7955534a796c1c199e872909de2013ce6a8"
+        }
+      ],
+      "tool": "Codex",
+      "source_path": "skills/.curated/playwright",
+      "name": "playwright"
+    },
+    {
+      "local_path": ".agents/skills/verification-before-completion",
+      "source_url": "https://github.com/obra/superpowers/tree/b36e0829c6d0140e93cfef2ca599b1b07d4a7797/skills/verification-before-completion",
+      "repository": "obra/superpowers",
+      "revision": "b36e0829c6d0140e93cfef2ca599b1b07d4a7797",
+      "files": [
+        {
+          "path": ".agents/skills/verification-before-completion/LICENSE",
+          "sha256": "a37e0e9697144819e1d965176ac4ae5bc3fa02d11e7812036bbcadf6dafe2400"
+        },
+        {
+          "path": ".agents/skills/verification-before-completion/SKILL.md",
+          "sha256": "2befe7fc55bcadaa3d97dd9e8efeb633d2561c0ebe74c5a8b17c4d9e7e4520b3"
+        }
+      ],
+      "tool": "Codex",
+      "source_path": "skills/verification-before-completion",
+      "name": "verification-before-completion"
+    }
+  ]
+}
