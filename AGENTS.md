@@ -20,6 +20,13 @@
 
 ## 共同作業
 
+- 導入スキルと使い分けは `docs/skills-setup.md` を参照する。
+- Claude Codeの文書作成は `doc-coauthoring`、Codexの画面実装は `frontend-design`、ブラウザ操作確認は `playwright`、完了報告前の証拠確認は `verification-before-completion` が担当する。
+- スキルは合意済み要件・担当範囲の中で使う。文書作成スキルで実装を始めたり、画面設計スキルで企画・必須機能を決め直したりしない。
+- `frontend-design` と別のUI設計スキル、`doc-coauthoring` と別の企画ワークフローを同じ作業に重ねない。必要な成果物は既存の文書を更新し、同じ目的の文書を増やさない。
+- このリポジトリのPlaywrightラッパーは `.agents/skills/playwright/scripts/playwright_cli.sh`。上流スキルのユーザー共通インストール先の例ではなく、このパスを使う。WindowsではGit for WindowsのBashで実行する。
+- 完了前検証は、その変更に関係する確認と未確認事項の報告に使う。存在しないテストの成功を主張したり、必要のないチェックを繰り返したりしない。
+
 - 通常の変更は作業ブランチで行い、PR経由でmainへ統合する。初回のリポジトリ準備は例外。
 - Codexのブランチは `codex/<担当者>-<作業内容>`、他のツールは `feat/`、`fix/`、`docs/` 等を使用できる。クラウドサービスが生成するブランチ名も許容する。
 - 別のAIセッションは別ブランチ・別worktreeまたは別cloneで動かす。

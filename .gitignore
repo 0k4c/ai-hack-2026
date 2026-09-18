@@ -12,6 +12,8 @@ credentials.json
 CLAUDE.local.md
 .codex/
 .worktrees/
+.playwright-cli/
+output/playwright/
 
 # Dependencies and generated output
 node_modules/

@@ -22,6 +22,7 @@
 | 知りたいこと | 見る資料 |
 | --- | --- |
 | Claude CodeとCodexの担当・引き継ぎ | [AIの役割](docs/ai-roles.md) |
+| 導入したスキル・使い分け | [スキル構成と使い方](docs/skills-setup.md) |
 | なぜ作るか・誰に役立つか | [企画書](docs/proposal.md)（テーマ発表後に記入） |
 | 何を作り、何を作らないか | [短い要件定義書](docs/requirements.md)（テーマ発表後に記入） |
 | いつまでに何を終えるか | [5日間のロードマップ](docs/roadmap.md) |
