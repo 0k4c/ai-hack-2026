@@ -2,18 +2,19 @@
 
 2026年9月19日開始のハッカソンに向けた、3人チームの共同開発リポジトリです。
 
-- リポジトリ: https://github.com/0k4c/ai-hack-2026 （Private）
+- リポジトリ: https://github.com/0k4c/ai-hack-2026 （現在Private。**提出時はpublic、またはGoogleDriveでソース提出**。判断は [公式条件のまとめ](docs/event-brief.md) を参照）
 - 管理者: @0k4c
 - メンバー: @Murakami-1124、@tomoyan2312（2026-09-18に招待を承諾）
-- 技術スタック・実装テーマ: 未決定
+- テーマ: 業務を自律化するAIエージェント（2026-09-19確定）
+- 技術スタック: 未決定。モデルはOrcaRouter（OpenAI SDK互換）を利用する前提
 
-## 明日の始め方
+## 今日の始め方（9/19）
 
-1. [公式イベントの確認メモ](docs/event-brief.md) で日程と未確認事項を読む。
+1. [公式条件のまとめ](docs/event-brief.md) でテーマ・審査基準・提出期限（**9/22 15:00**）を読む。
 2. [3人での進め方・仮の役割分担](docs/team-playbook.md) を共有する。
-3. 正式テーマ発表後、[キックオフシート](docs/kickoff-sheet.md) を60分で埋める。
+3. [制作案の候補](docs/idea-candidates.md) を読み、[キックオフシート](docs/kickoff-sheet.md) を60分で埋めて1案に決める。
 4. 決めた内容を [企画書](docs/proposal.md) と [短い要件定義書](docs/requirements.md) に書き写す。
-5. [5日間のロードマップ](docs/roadmap.md) で、その日の到達点と判断ポイントを確認する。
+5. [ロードマップ](docs/roadmap.md) で、その日の到達点と提出の逆算を確認する。
 
 3人ともハッカソン・共同開発初心者です。仮の役割は、あなた（0k4c）が全体の調整・統合、メンバー2が入力・使いやすさ、メンバー3が出力・確認・見せ方です。全員がAIを使い、小さな変更から進めます。
 
@@ -23,9 +24,11 @@
 | --- | --- |
 | Claude CodeとCodexの担当・引き継ぎ | [AIの役割](docs/ai-roles.md) |
 | 導入したスキル・使い分け | [スキル構成と使い方](docs/skills-setup.md) |
-| なぜ作るか・誰に役立つか | [企画書](docs/proposal.md)（テーマ発表後に記入） |
-| 何を作り、何を作らないか | [短い要件定義書](docs/requirements.md)（テーマ発表後に記入） |
-| いつまでに何を終えるか | [5日間のロードマップ](docs/roadmap.md) |
+| 前回作品の記事と参考にする設計 | [前回作品の参照メモ](docs/previous-projects.md) |
+| どんな案があるか・どう選ぶか | [制作案の候補](docs/idea-candidates.md) |
+| なぜ作るか・誰に役立つか | [企画書](docs/proposal.md)（打ち合わせで記入） |
+| 何を作り、何を作らないか | [短い要件定義書](docs/requirements.md)（打ち合わせで記入） |
+| いつまでに何を終えるか | [ロードマップ](docs/roadmap.md)（提出は9/22 15:00） |
 | 誰が何をしているか・次の作業 | [進捗管理の使い方](docs/progress.md)とGitHub Issues |
 | 役割・AIへの依頼・共同作業 | [3人での進め方](docs/team-playbook.md) |
 
