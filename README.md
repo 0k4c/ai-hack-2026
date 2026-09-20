@@ -6,7 +6,7 @@
 - 管理者: @0k4c
 - メンバー: @Murakami-1124、@tomoyan2312（2026-09-18に招待を承諾）
 - テーマ: 業務を自律化するAIエージェント（2026-09-19確定）
-- 最初の実装: Node.js CLI。代打候補の選定と希望文の解釈を、OrcaRouterのOpenAI互換HTTP APIで行い、結果をJSONに保存
+- 実装: Node.js CLIで代打候補の選定・希望文の解釈・最大3巡の代打手配を行い、ローカル画面で判断と記録を確認。承認はこのPCのJSONに保存するデモ
 
 ## 今日の始め方（9/19）
 
@@ -58,20 +58,137 @@ AIへの共通指示は [AGENTS.md](AGENTS.md) です。Claude Codeは [CLAUDE.m
 
 ## 実行環境
 
-代打候補を1人選ぶCLIと、希望文を解釈するCLIがあります。打診送信・勤務確定・画面・再打診ループは未実装です。
+代打候補の選定、希望文の解釈、返事に応じた最大3巡の代打手配、記録を表示する画面、ローカルデモの承認、モデル比較を実装しています。打診は `dryrun`（未送信）で、返事は架空のJSONから読み込みます。外部送信・本番の勤務表更新・給与や勤怠システムの更新は行いません。
 
 ### 技術スタックの提案と今回の採用範囲
 
 | 用途 | 採用 | 理由 |
 | --- | --- | --- |
 | 実行環境・言語 | Node.js 24系、JavaScript ES Modules | 3人の導入済み環境を使い、コンパイル不要で実行できる |
-| AI連携 | Node.js標準fetch → OrcaRouterのChat Completions API | 今回はAPI呼び出し1回だけなのでSDKやエージェントフレームワークの追加が不要 |
-| 保存 | 1実行1JSONファイル | 元文・解釈・あいまい理由・利用情報をそのまま確認できる |
+| AI連携 | Node.js標準fetch → OrcaRouterのChat Completions API | 候補選定と文の解釈を呼び出し、再打診と停止条件はコードで制御する |
+| 保存 | 処理ごとのJSONと別ファイルの承認記録 | 元文・判断・利用情報を確認でき、承認時も元の手配記録を保持する |
+| 画面 | 素のHTML / CSS / JavaScript、Node.jsのローカルHTTPサーバー | 保存した手配記録の表示とローカルデモの承認を行う |
 | 検証 | node:test、node:assert | 追加パッケージなしで入力・応答・通信失敗・保存を確認できる |
 
-Node.js 22.22.1以上で実行できます（実行確認: v24.8.0 / npm 11.19.0）。今回のCLIとテストに `npm install` は不要です。画面やDBの導入は、その担当タスクが決まった段階で検討します。`public/` は引き続きQiita記事専用とし、実装は `src/`、架空データは `data/` に配置します。
+Node.js 22.22.1以上で実行できます（実行確認: v24.8.0 / npm 11.19.0）。アプリのCLI・表示サーバー・テストに `npm install` は不要です。Qiita記事のプレビューだけ依存パッケージのインストールが必要です。`public/` はQiita記事専用、処理は `src/`、画面は `app/`、架空データは `data/` に配置します。
 
 参考: [Node.js fetch](https://nodejs.org/docs/latest-v24.x/api/globals.html#fetch)、[OrcaRouter HTTP API](https://docs.orcarouter.ai/native-formats/openai-compat)。
+
+### 新しくcloneして起動する
+
+GitHubへのアクセス権とNode.js **22.22.1以上**を用意し、次を実行します。以降のコマンドはすべてcloneしたリポジトリの直下で実行してください。
+
+```sh
+git clone https://github.com/0k4c/ai-hack-2026.git
+cd ai-hack-2026
+node --version
+npm --version
+```
+
+PowerShellでは `Copy-Item .env.example .env`、macOS / Linuxでは `cp .env.example .env` で設定ファイルを作ります。既存の `.env` は上書きせず使ってください。実APIを使うときは、自分のエディタで `.env` の `ORCAROUTER_API_KEY` を設定します。`ORCAROUTER_MODEL` は空なら `orcarouter/auto`、設定済みNamed Routerを使うなら `orcarouter/<名前>` です。キーは引数・チャット・Gitに含めません。
+
+まずキー・外部通信なしで確認できます。
+
+```sh
+npm test
+node src/compare-models.mjs --plan
+node app/serve.mjs
+```
+
+最後のコマンドを起動したまま `http://127.0.0.1:4173` を開き、「架空サンプルを見る」を選びます。終了はターミナルで `Ctrl+C`。実手配の確認は、次の `npm run arrange` で作った記録を画面の一覧から選びます。
+
+### 代打手配：選定から最大3巡まで
+
+`.env` にキーを設定してから実行します。**実APIを呼び出すため利用料が発生します。** 1件あたり初回選定1回＋返事解釈最大3回です。
+
+```sh
+npm run arrange
+
+# 日付・返事・保存先を指定する場合。日付は当日以降に置き換える
+npm run arrange -- --date 2026-09-21 --replies data/replies.example.json --output output/arrangements
+```
+
+既定は日本時間の翌日18:00〜22:00、e1の欠勤です。`data/replies.example.json` はe2の辞退とe3の受諾を含む架空の返事です。選ばれる順序や判断はモデルによって変わります。`--absent`、`--start`、`--end` も指定でき、詳細は `npm run arrange -- --help` で確認できます。
+
+`output/arrangements/<64桁の処理ID>.json` に、候補の除外理由・各巡の返事と判断・モデル・トークン・概算費用を保存します。同じ欠員（日付・時間・欠勤者）を同じ保存先で再実行すると、保存済みの記録を返し、API呼び出しと再打診を行いません。比較目的などで再計測するときは、記録を残して別の `--output` を使います（新たに課金されます）。
+
+| 表示・記録 | 意味 |
+| --- | --- |
+| `status: "filled"` / `approvalStatus: "pending"` | 全時間を受諾した人が見つかり、**店長の承認待ち**。勤務確定ではない |
+| `status: "escalated"` | 3巡上限・返事なし・部分受諾などで止まり、店長の判断が必要 |
+| `status: "failed"` / `"pending"` | API等の失敗／処理途中。終了コード1。記録を確認する |
+| `channel: "dryrun"` / `delivered: false` | 打診文を記録しただけで、**未送信** |
+| モデル・トークン・費用の `null` | **不明**。0トークン・0円ではない |
+
+最大3巡、API1回最大60秒、全体最大180秒で停止します。途中の `pending` が残っても自動再開しません。元記録とサービスの利用状況を確認してください。希望文と同様に氏名をIDへ置換してAPIへ送りますが、元の返事はローカルJSONに残るため、架空データを使います。
+
+### 承認：このPCだけに保存するデモ
+
+**暫定の制約（[Issue #34](https://github.com/0k4c/ai-hack-2026/issues/34)）：CLIと画面は承認記録を共有しません。** 同じ手配を両方から承認すると二重に保存できます。解消までは、1件の手配に使う承認経路をCLIか画面のどちらかに固定してください。片方の承認結果はもう片方に表示されません。
+
+CLIでは、手配コマンドが表示したファイル名の64桁部分を処理IDとして使います。以下の `<ID>` と `<HASH>` は実際の値に置き換えます。
+
+```sh
+# 内容とrecordHashを表示。保存はしない（APIキー不要）
+npm run approve -- --process <ID>
+
+# 表示内容を確認後、表示されたrecordHashで明示的に承認する
+npm run approve -- --process <ID> --expected-hash <HASH> --confirm
+```
+
+手配時に保存先を変えた場合は、どちらのコマンドにも `--records <手配の保存先>` を加えます。全時間を受諾した承認待ちの手配が対象で、表示後に記録が変わると承認を拒否します。同じCLI経路での再承認は保存済みの結果を返します。
+
+| 経路 | 現在の承認保存先 | 制約 |
+| --- | --- | --- |
+| CLI | `<手配の保存先>/approvals/<ID>.json` | 過去日の拒否・別の承認済み勤務を含めた再判定は未対応 |
+| 画面 | `<手配の保存先>/_approvals/<ID>.json` | 過去日を拒否。同じ保存先の画面側承認を加えて勤務条件を再判定 |
+
+元の手配JSONは書き換えず、承認だけを別JSONに保存します。**承認済みでも、このPC上のデモの記録です。** 本番の勤務表・給与・勤怠システムは更新しません。CLIと画面のハッシュ・承認JSONの形式も異なるため、承認ファイルを移動して共用しないでください。画面の `_approvals/.lock` が中断で残った場合は処理中として停止するので、他の承認処理と保存状態を確認してください。
+
+### 判断が見える画面
+
+```sh
+node app/serve.mjs
+
+# 別ポート・別の手配記録フォルダを使う場合
+node app/serve.mjs --port 4174 --records output/arrangements
+```
+
+既定URLは `http://127.0.0.1:4173`、既定の記録フォルダは `output/arrangements` です。画面上部の一覧から記録を選ぶと、除外理由、打診と返事、AIが選んだ行動、巡数、実モデル、トークン、概算費用が表示されます。記録を追加したら「一覧を更新」を押してください。画面から欠員入力・手配実行はできません。
+
+「架空サンプルを見る」と「JSONファイルを開く」は表示用で、承認を保存できません。画面から承認する場合は、サーバーの記録一覧から対象を開き、内容を確認して承認ボタンを押します。保存後は同じ画面から開き直して承認済み表示を確認できます。CLIから承認した記録との共用は、前節の #34 の制約があります。
+
+サーバーは `127.0.0.1` のみに接続を受け付けます。Host・Originの検証を通らない要求は403となり、承認の書き込みには同一Originとセッショントークンが必要です。ログインや店長本人の認証は未実装です。
+
+### モデル比較
+
+```sh
+# 通信なしで入力・モデル・予定回数を確認
+node src/compare-models.mjs --plan
+
+# 実API：3モデル × 各3回 × 2機能 = 18回（利用料が発生）
+node --env-file-if-exists=.env src/compare-models.mjs
+
+# 人が品質を確認してConsoleでNamed Routerを設定した後
+# .envのORCAROUTER_MODEL=orcarouter/<名前>を使う。6回（利用料が発生）
+node --env-file-if-exists=.env src/compare-models.mjs --configured
+```
+
+比較対象は `auto` / `free` / `google/gemini-2.5-flash`、入力は2026-09-21の架空データに固定しています。現在日付の手配には置き換えません。`--models ID,ID`、`--repeats 1〜3` で範囲を絞れます。JSONと表は `output/selections/model-comparisons/<UUID>.json` / `.md` に保存されます。
+
+失敗を含むと終了コード1で `completed_with_errors` になります。2026-09-20の既存18回の実測では、autoは6/6形式検証成功、freeは6/6 HTTP 429、Gemini直接指定は2/6形式検証成功でした。形式検証は品質の採点ではなく、**所見は人が記入します。** freeの成功時の費用と速度は未測定で、0円とは扱いません。実測条件・全試行・人が確認する回答は [モデル比較の記録](docs/model-comparison.md) を参照してください。Named Router設定・切り替え後の実測・Fallback発動の確認は #17 の残作業です。
+
+### テストと自動実行の範囲
+
+```sh
+npm test
+# 同じテストを直接実行
+node --test
+```
+
+通信を模擬し、候補選定・希望文解釈・3巡の手配・承認・画面のHTTP処理・モデル比較を確認します。キーや実APIは不要です。Windowsではシンボリックリンク拒否の1件が権限依存のためスキップされます。CLIと画面をまたぐ二重承認の不具合 #34 は、現状のテストでは検出できません。
+
+lint・buildコマンドは未導入です。GitHub Actionsは `.github/workflows/publish.yml` のQiita投稿のみで、**テストの自動実行はありません**。マージ前に手元でテストを実行してください。
 
 ### 代打候補の選定
 
