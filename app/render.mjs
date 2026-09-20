@@ -51,9 +51,15 @@ function renderRound(round, maxRounds) {
     <div class="decision ${actionTone}"><strong>${text(actions[action?.type] ?? '次の行動は未記録')}${action?.employeeId ? `：${text(person(action.employeeId))}` : ''}</strong>${action?.start || action?.end ? `<p class="muted">${text(action.start)}–${text(action.end)}</p>` : ''}${paragraph(action?.reason)}</div>${measurements(round)}</li>`;
 }
 
-export function renderRecord(input, { sample = false } = {}) {
+export function renderRecord(input, { sample = false, review = null } = {}) {
   const record = validateRecord(input);
   sample ||= record.isDisplaySample === true;
+  const approval = !sample && review?.approval;
+  const canApprove = !sample && review?.canApprove === true;
+  const statusLabel = approval ? '承認済み（このPC）' : statuses[record.status];
+  const approvalNote = approval ? `承認日時：${text(approval.approvedAt)}。このPCに承認した勤務を保存しました。`
+    : canApprove ? '内容を確認して承認すると、このPCに承認した勤務を保存します。外部への送信はありません。'
+    : text(review?.reason ?? 'ファイルを直接開いた場合と表示用サンプルは閲覧のみです。承認するには保存された手配記録を一覧から選んでください。');
   const rounds = [...record.rounds].sort((a,b) => a.number - b.number);
   const evaluations = record.filtering.evaluations;
   const candidates = evaluations.filter(entry => entry.eligible === true).length;
@@ -61,11 +67,11 @@ export function renderRecord(input, { sample = false } = {}) {
   const costUnknown = requests.some(unavailable);
   const totalCost = costUnknown ? '不明' : cost(record.totalEstimatedCostUsd);
   const totalTokens = costUnknown ? '不明' : number(record.totalTokens?.total);
-  return `<section class="intro"><div><div class="muted ${sample ? 'sample-tag' : ''}">${sample ? '架空サンプル / 数値は表示確認用です' : record.dataSource === 'synthetic_seed' ? '架空の従業員データを使った手配記録' : '読み込んだ手配記録'}</div><h1>${time(record.vacancy)} の欠員</h1><p>欠勤者：${text(person(record.vacancy.absentEmployeeId))}</p><p class="meta">処理ID ${text(record.processId)}<br>記録日時 ${text(record.createdAt)}</p></div>${badge(statuses[record.status], record.status)}</section>
+  return `<section class="intro"><div><div class="muted ${sample ? 'sample-tag' : ''}">${sample ? '架空サンプル / 数値は表示確認用です' : record.dataSource === 'synthetic_seed' ? '架空の従業員データを使った手配記録' : '読み込んだ手配記録'}</div><h1>${time(record.vacancy)} の欠員</h1><p>欠勤者：${text(person(record.vacancy.absentEmployeeId))}</p><p class="meta">処理ID ${text(record.processId)}<br>記録日時 ${text(record.createdAt)}</p></div>${badge(statusLabel, record.status)}</section>
     <section class="summary-strip" aria-label="手配の合計"><div><span class="metric-label">打診回数 / 上限</span><span class="metric-value">${rounds.length} / ${number(record.limits.maxRounds)} 巡</span></div><div><span class="metric-label">合計トークン（初回選定を含む）</span><span class="metric-value">${totalTokens}</span></div><div><span class="metric-label">合計概算費用（USD）</span><span class="metric-value">${totalCost}</span></div><div><span class="metric-label">処理全体の所要時間</span><span class="metric-value">${duration(record.totalDurationMs)}</span></div></section>
     ${record.status === 'pending' ? '<p class="muted">処理途中、または中断された記録です。計数・費用は途中値で、未反映の通信がある可能性があります。一覧を更新して最新の記録を開いてください。</p>' : ''}
     <div class="layout"><aside class="panel"><h2>コードで候補を絞る</h2><p class="muted">${evaluations.length}人を確認し、${candidates}人が候補。<br>対象週の開始：${text(record.filtering.weekStart)}</p><div class="candidate-list">${evaluations.map(entry => `<div class="candidate"><div class="candidate-heading"><span class="candidate-name">${text(person(entry.employeeId))}</span><span class="muted">${entry.eligible === true ? '候補' : entry.eligible === false ? '除外' : '判定不明'}</span></div>${entry.reasons.map(reason => `<p>${text(exclusions[reason] ?? reason)}<br><code>${text(reason)}</code></p>`).join('')}<p class="muted">週 ${number(entry.weeklyHoursBefore)} → ${number(entry.weeklyHoursAfter)}h / 上限 ${number(entry.maxWeeklyHours)}h<br>追加後 ${number(entry.consecutiveDaysAfter)}連勤 / 上限 ${number(entry.maxConsecutiveDays)}日</p></div>`).join('') || '<p>候補判定の記録がありません。</p>'}</div></aside>
     <section aria-label="判断と打診の時系列"><h2>AIの判断をたどる</h2><div class="initial panel"><h3>最初の候補：${text(person(record.selection?.employeeId))}</h3>${paragraph(record.selection?.reason ?? '初回選定の記録がありません。')}${measurements(record.selectionRequest)}</div><ol class="timeline">${rounds.map(round => renderRound(round, record.limits.maxRounds)).join('')}</ol>${rounds.length === 0 ? '<p class="panel">打診の記録はありません。</p>' : ''}
-    <section class="approval panel"><div class="approval-content"><div><h2>${text(statuses[record.status])}</h2>${paragraph(stops[record.stopReason] ?? record.stopReason ?? '停止理由は未記録です。')}${record.provisionalAssignment ? `<p>仮押さえ：<strong>${text(person(record.provisionalAssignment.employeeId))}</strong><br>${time(record.provisionalAssignment)}</p>` : ''}</div><button type="button" disabled aria-describedby="approval-note">店長が承認する（未接続）</button></div><p id="approval-note" class="muted">勤務は未確定です。承認の保存処理が未実装のため、この画面からは確定できません。</p>${record.error ? `<p class="report-text failed">${text(record.error.code)} / HTTP ${text(record.error.httpStatus)}<br>${text(record.error.message)}</p>` : ''}</section>
+    <section class="approval panel"><div class="approval-content"><div><h2>${text(statusLabel)}</h2>${paragraph(approval ? '店長の承認を保存しました。外部の勤務表・給与・勤怠システムへの反映は行いません。' : stops[record.stopReason] ?? record.stopReason ?? '停止理由は未記録です。')}${record.provisionalAssignment ? `<p>${approval ? '承認した勤務' : '仮押さえ'}：<strong>${text(person(record.provisionalAssignment.employeeId))}</strong><br>${time(record.provisionalAssignment)}</p>` : ''}</div><button id="approve" type="button" ${canApprove ? '' : 'disabled'} aria-describedby="approval-note">${approval ? '承認を保存済み' : '店長が承認して保存'}</button></div><p id="approval-note" class="muted">${approvalNote}</p><p id="approval-message" role="status" aria-live="polite"></p>${record.error ? `<p class="report-text failed">${text(record.error.code)} / HTTP ${text(record.error.httpStatus)}<br>${text(record.error.message)}</p>` : ''}</section>
     <p class="muted">費用は応答時点の概算USDで、確定請求額ではありません。取得できない計測値は「不明」と表示します。</p></section></div>`;
 }

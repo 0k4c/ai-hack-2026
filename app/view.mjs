@@ -5,6 +5,7 @@ const notice = document.querySelector('#notice');
 const select = document.querySelector('#records');
 const maxSize = 2 * 1024 * 1024;
 let generation = 0;
+let activeReview = null;
 
 function message(value, error = false) {
   notice.textContent = value;
@@ -17,14 +18,18 @@ async function json(url) {
   return response.json();
 }
 
-async function openRecord(load, label, sample = false) {
+async function openRecord(load, label, sample = false, savedName = null) {
   const current = ++generation;
+  activeReview = null;
   report.replaceChildren();
   message('記録を読み込んでいます。');
   try {
-    const record = await load();
+    const payload = await load();
     if (current !== generation) return;
-    report.innerHTML = renderRecord(record, { sample });
+    const record = savedName ? payload.record : payload;
+    const review = savedName ? payload : null;
+    report.innerHTML = renderRecord(record, { sample, review });
+    if (savedName) activeReview = { name:savedName, review, generation:current };
     message(`${label}を表示しています。`);
   } catch (error) {
     if (current !== generation) return;
@@ -34,6 +39,7 @@ async function openRecord(load, label, sample = false) {
 
 async function refresh() {
   const current = ++generation;
+  activeReview = null;
   report.replaceChildren();
   message('記録の一覧を読み込んでいます。');
   select.replaceChildren(new Option('記録を選んでください', ''));
@@ -53,8 +59,36 @@ async function refresh() {
 }
 
 select.addEventListener('change', () => {
-  if (select.value) openRecord(() => json(`/api/arrangements/${encodeURIComponent(select.value)}`), select.value);
-  else { ++generation; report.replaceChildren(); message('表示する記録を選んでください。'); }
+  const name = select.value;
+  if (name) openRecord(() => json(`/api/review/${encodeURIComponent(name)}`), name, false, name);
+  else { ++generation; activeReview = null; report.replaceChildren(); message('表示する記録を選んでください。'); }
+});
+report.addEventListener('click', async event => {
+  if (event.target.id !== 'approve' || !activeReview?.review.canApprove) return;
+  const active = activeReview;
+  const button = event.target;
+  button.disabled = true;
+  const feedback = document.querySelector('#approval-message');
+  feedback.textContent = '承認を保存しています。';
+  try {
+    const { approvalToken } = await json('/api/session');
+    const response = await fetch(`/api/approve/${encodeURIComponent(active.name)}`, {
+      method:'POST', headers:{'Content-Type':'application/json','X-Approval-Token':approvalToken},
+      body:JSON.stringify({ recordHash:active.review.recordHash }),
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error ?? '承認を保存できませんでした。');
+    if (active.generation !== generation) return;
+    active.review = result;
+    report.innerHTML = renderRecord(result.record, { review:result });
+    document.querySelector('#approval-message').textContent = '承認を保存しました。';
+    message(`${active.name}の承認を保存しました。`);
+  } catch (error) {
+    if (active.generation !== generation) return;
+    feedback.textContent = `${error.message} 記録を開き直して状態を確認してください。`;
+    feedback.classList.add('failed');
+    // Do not blindly retry an uncertain write; reload the saved receipt first.
+  }
 });
 document.querySelector('#sample').addEventListener('click', () => {
   select.value = '';

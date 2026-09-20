@@ -2,6 +2,8 @@ import { createServer } from 'node:http';
 import { readFile, readdir, realpath, stat } from 'node:fs/promises';
 import { dirname, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { randomBytes } from 'node:crypto';
+import { ApprovalError, approveRecord, reviewRecord } from './approval.mjs';
 
 const appDir = dirname(fileURLToPath(import.meta.url));
 const defaultRecords = resolve(appDir, '../output/arrangements');
@@ -22,6 +24,12 @@ async function recordPath(directory, name) {
 }
 
 export function createViewServer({ recordsDir = defaultRecords } = {}) {
+  const approvalToken = randomBytes(32).toString('hex');
+  const loadRecord = async name => {
+    const path = await recordPath(recordsDir, name);
+    if ((await stat(path)).size > maxSize) throw new ApprovalError('ファイルは2MB以内にしてください。', 413);
+    return JSON.parse((await readFile(path, 'utf8')).replace(/^\uFEFF/, ''));
+  };
   return createServer(async (req, res) => {
     const send = (status, body, type = 'application/json') => {
       res.writeHead(status, {
@@ -35,9 +43,38 @@ export function createViewServer({ recordsDir = defaultRecords } = {}) {
     if (!/^(127\.0\.0\.1|localhost)(:\d+)?$/.test(req.headers.host ?? '') || (req.headers.origin && req.headers.origin !== `http://${req.headers.host}`)) {
       send(403, '{"error":"forbidden"}'); return;
     }
-    if (req.method !== 'GET') { send(405, '{"error":"read_only"}'); return; }
     try {
       const url = new URL(req.url, 'http://127.0.0.1');
+      if (req.method === 'POST' && url.pathname.startsWith('/api/approve/')) {
+        if (req.headers.origin !== `http://${req.headers.host}` || req.headers['x-approval-token'] !== approvalToken || req.headers['content-type'] !== 'application/json') {
+          send(403, JSON.stringify({ error:'この画面を開き直して承認してください。' })); return;
+        }
+        let body = '';
+        for await (const chunk of req) {
+          body += chunk;
+          if (Buffer.byteLength(body) > 1024) throw new ApprovalError('承認要求が大きすぎます。', 413);
+        }
+        let input;
+        try { input = JSON.parse(body); } catch { throw new ApprovalError('承認要求が不正です。', 400); }
+        if (!input || Object.keys(input).join(',') !== 'recordHash' || !/^[a-f0-9]{64}$/.test(input.recordHash)) throw new ApprovalError('承認要求が不正です。', 400);
+        const name = decodeURIComponent(url.pathname.slice('/api/approve/'.length));
+        if (!/^[a-f0-9]{64}\.json$/.test(name)) throw new ApprovalError('保存された手配記録を選択してください。', 400);
+        const result = await approveRecord({ recordsDir, expectedHash:input.recordHash, loadRecord:async () => {
+          const record = await loadRecord(name);
+          if (name !== record.processId + '.json') throw new ApprovalError('ファイル名と処理IDが一致しません。');
+          return record;
+        } });
+        send(200, JSON.stringify(result)); return;
+      }
+      if (req.method !== 'GET') { send(405, '{"error":"read_only"}'); return; }
+      if (url.pathname === '/api/session') { send(200, JSON.stringify({ approvalToken })); return; }
+      if (url.pathname.startsWith('/api/review/')) {
+        const name = decodeURIComponent(url.pathname.slice('/api/review/'.length));
+        const record = await loadRecord(name);
+        const review = await reviewRecord(record, recordsDir);
+        if (name !== record.processId + '.json') { review.canApprove = false; review.reason = 'ファイル名と処理IDが一致しません。'; }
+        send(200, JSON.stringify(review)); return;
+      }
       const asset = staticFiles.get(url.pathname);
       if (asset) { send(200, await readFile(resolve(appDir, asset[0])), asset[1]); return; }
       if (url.pathname === '/api/arrangements') {
@@ -57,7 +94,8 @@ export function createViewServer({ recordsDir = defaultRecords } = {}) {
       }
       send(404, '{"error":"not_found"}');
     } catch (error) {
-      if (['ENOENT', 'ENOTDIR'].includes(error.code) || error.message === 'invalid_path' || error instanceof URIError) send(404, '{"error":"not_found"}');
+      if (error instanceof ApprovalError) send(error.status, JSON.stringify({ error:error.message }));
+      else if (['ENOENT', 'ENOTDIR'].includes(error.code) || error.message === 'invalid_path' || error instanceof URIError) send(404, '{"error":"not_found"}');
       else send(500, '{"error":"unreadable_record"}');
     }
   });
@@ -78,5 +116,5 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
   const recordsDir = options['--records'] ? resolve(options['--records']) : defaultRecords;
   const server = createViewServer({ recordsDir });
   server.on('error', error => { console.error(`表示サーバーを起動できません (${error.code})。別の --port を指定してください。`); process.exitCode = 1; });
-  server.listen(port, '127.0.0.1', () => console.log(`代打手配の記録: http://127.0.0.1:${port}\n記録フォルダ: ${recordsDir}\n閲覧専用 / Ctrl+Cで終了`));
+  server.listen(port, '127.0.0.1', () => console.log(`代打手配の記録: http://127.0.0.1:${port}\n記録フォルダ: ${recordsDir}\n承認は記録フォルダ内の_approvalsへ保存 / Ctrl+Cで終了`));
 }

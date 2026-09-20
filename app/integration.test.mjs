@@ -64,5 +64,20 @@ test('手配の実装が保存したJSONをHTTP経由で取得し画面へ表示
     assert.ok(html.includes('disabled'));
     assert.ok(html.includes('weekly_hours_limit'));
     assert.equal(html.includes('確定済み'), false);
+    const review = await (await fetch(base + '/api/review/' + files[0])).json();
+    assert.equal(review.canApprove, fixture.status === 'filled');
+    if (fixture.status === 'filled') {
+      const { approvalToken } = await (await fetch(base + '/api/session')).json();
+      const response = await fetch(base + '/api/approve/' + files[0], {
+        method: 'POST', headers: { Origin: base, 'Content-Type': 'application/json', 'X-Approval-Token': approvalToken },
+        body: JSON.stringify({ recordHash: review.recordHash }),
+      });
+      assert.equal(response.status, 200);
+      const approved = await response.json();
+      assert.equal(approved.approval.status, 'approved');
+      assert.deepEqual(approved.approval.assignment, record.provisionalAssignment);
+      assert.ok(renderRecord(record, { review: approved }).includes('承認済み（このPC）'));
+      assert.deepEqual(JSON.parse(await readFile(run.path, 'utf8')), record);
+    }
   });
 });

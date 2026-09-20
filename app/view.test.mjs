@@ -14,7 +14,7 @@ test('契約v1の全巡・除外理由・初回と合計計測を表示し、勤
   const value = clone();
   value.rounds.reverse();
   const html = renderRecord(value, { sample:true });
-  for (const expected of ['1巡目 / 最大3巡','2巡目 / 最大3巡','次の候補へ打診','店長の承認待ち','未送信（dryrun）','weekly_hours_limit','consecutive_days_limit','希望休','既存勤務と重複','sample-model','2,100','$0.000300','架空サンプル','disabled','承認の保存処理が未実装']) assert.ok(html.includes(expected), expected);
+  for (const expected of ['1巡目 / 最大3巡','2巡目 / 最大3巡','次の候補へ打診','店長の承認待ち','未送信（dryrun）','weekly_hours_limit','consecutive_days_limit','希望休','既存勤務と重複','sample-model','2,100','$0.000300','架空サンプル','disabled','閲覧のみ']) assert.ok(html.includes(expected), expected);
   assert.ok(html.indexOf('1巡目') < html.indexOf('2巡目'));
   assert.equal(html.includes('確定済み'), false);
 });
