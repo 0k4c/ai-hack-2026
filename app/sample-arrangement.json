@@ -1,0 +1,234 @@
+{
+  "schemaVersion": 1,
+  "isDisplaySample": true,
+  "processId": "sample-decline-then-accept",
+  "createdAt": "2026-09-20T06:00:00.000Z",
+  "dataSource": "synthetic_seed",
+  "vacancy": {
+    "absentEmployeeId": "e1",
+    "date": "2026-09-21",
+    "start": "18:00",
+    "end": "22:00"
+  },
+  "filtering": {
+    "weekStart": "2026-09-21",
+    "evaluations": [
+      {
+        "employeeId": "e1",
+        "eligible": false,
+        "reasons": [
+          "absent_employee",
+          "shift_overlap"
+        ],
+        "weeklyHoursBefore": 4,
+        "weeklyHoursAfter": 8,
+        "maxWeeklyHours": 32,
+        "consecutiveDaysAfter": 1,
+        "maxConsecutiveDays": 5
+      },
+      {
+        "employeeId": "e2",
+        "eligible": true,
+        "reasons": [],
+        "weeklyHoursBefore": 0,
+        "weeklyHoursAfter": 4,
+        "maxWeeklyHours": 32,
+        "consecutiveDaysAfter": 2,
+        "maxConsecutiveDays": 5
+      },
+      {
+        "employeeId": "e3",
+        "eligible": true,
+        "reasons": [],
+        "weeklyHoursBefore": 4,
+        "weeklyHoursAfter": 8,
+        "maxWeeklyHours": 32,
+        "consecutiveDaysAfter": 2,
+        "maxConsecutiveDays": 5
+      },
+      {
+        "employeeId": "e4",
+        "eligible": false,
+        "reasons": [
+          "consecutive_days_limit"
+        ],
+        "weeklyHoursBefore": 0,
+        "weeklyHoursAfter": 4,
+        "maxWeeklyHours": 32,
+        "consecutiveDaysAfter": 6,
+        "maxConsecutiveDays": 5
+      },
+      {
+        "employeeId": "e5",
+        "eligible": false,
+        "reasons": [
+          "weekly_hours_limit"
+        ],
+        "weeklyHoursBefore": 30,
+        "weeklyHoursAfter": 34,
+        "maxWeeklyHours": 32,
+        "consecutiveDaysAfter": 7,
+        "maxConsecutiveDays": 7
+      },
+      {
+        "employeeId": "e6",
+        "eligible": false,
+        "reasons": [
+          "requested_day_off"
+        ],
+        "weeklyHoursBefore": 0,
+        "weeklyHoursAfter": 4,
+        "maxWeeklyHours": 32,
+        "consecutiveDaysAfter": 1,
+        "maxConsecutiveDays": 5
+      }
+    ],
+    "candidates": [
+      {
+        "employeeId": "e2",
+        "eligible": true,
+        "reasons": [],
+        "weeklyHoursBefore": 0,
+        "weeklyHoursAfter": 4,
+        "maxWeeklyHours": 32,
+        "consecutiveDaysAfter": 2,
+        "maxConsecutiveDays": 5
+      },
+      {
+        "employeeId": "e3",
+        "eligible": true,
+        "reasons": [],
+        "weeklyHoursBefore": 4,
+        "weeklyHoursAfter": 8,
+        "maxWeeklyHours": 32,
+        "consecutiveDaysAfter": 2,
+        "maxConsecutiveDays": 5
+      }
+    ]
+  },
+  "status": "filled",
+  "stopReason": "awaiting_approval",
+  "approvalStatus": "pending",
+  "provisionalAssignment": {
+    "employeeId": "e3",
+    "date": "2026-09-21",
+    "start": "18:00",
+    "end": "22:00"
+  },
+  "limits": {
+    "maxRounds": 3,
+    "maxDurationMs": 180000,
+    "timeoutMs": 60000
+  },
+  "selection": {
+    "employeeId": "e2",
+    "reason": "追加後の週労働時間は4時間で、鈴木の8時間より少なく、負担を分散できるため佐藤を選びました。"
+  },
+  "selectionRequest": {
+    "apiCalled": true,
+    "requestedModel": "orcarouter/auto",
+    "actualModel": "sample-model",
+    "requestId": "sample-request",
+    "tokens": {
+      "prompt": 500,
+      "completion": 200,
+      "total": 700
+    },
+    "estimatedCostUsd": 0.0001,
+    "costSource": "sample_only",
+    "durationMs": 3000
+  },
+  "rounds": [
+    {
+      "number": 1,
+      "employeeId": "e2",
+      "selectionReason": "追加後の週労働時間は4時間で、鈴木の8時間より少なく、負担を分散できるため佐藤を選びました。",
+      "originalReply": "その日は用事があって無理です。",
+      "interpretation": {
+        "kind": "declined",
+        "summary": "提示された日の勤務を辞退しています。代わりの時間の提示はありません。"
+      },
+      "action": {
+        "type": "next_candidate",
+        "employeeId": "e3",
+        "start": "18:00",
+        "end": "22:00",
+        "reason": "佐藤が辞退したため、残る候補の鈴木へ打診します。追加後8時間・2連勤で、どちらも上限内です。"
+      },
+      "offer": {
+        "date": "2026-09-21",
+        "start": "18:00",
+        "end": "22:00"
+      },
+      "message": "9月21日 18:00〜22:00の代打をお願いできますか。受諾後も店長の承認が必要です。",
+      "channel": "dryrun",
+      "delivered": false,
+      "notification": {
+        "channel": "dryrun",
+        "delivered": false
+      },
+      "apiCalled": true,
+      "requestedModel": "orcarouter/auto",
+      "actualModel": "sample-model",
+      "requestId": "sample-round-1",
+      "tokens": {
+        "prompt": 500,
+        "completion": 200,
+        "total": 700
+      },
+      "estimatedCostUsd": 0.0001,
+      "costSource": "sample_only",
+      "durationMs": 3000
+    },
+    {
+      "number": 2,
+      "employeeId": "e3",
+      "selectionReason": "佐藤が辞退したため、残る候補の鈴木へ打診します。追加後8時間・2連勤で、どちらも上限内です。",
+      "originalReply": "18時から22時まで、全部入れます。",
+      "interpretation": {
+        "kind": "accepted",
+        "summary": "提示された時間帯すべての勤務を受け入れています。"
+      },
+      "action": {
+        "type": "hold",
+        "employeeId": "e3",
+        "start": "18:00",
+        "end": "22:00",
+        "reason": "欠員の全時間帯を受諾したため仮押さえし、店長の承認を待ちます。"
+      },
+      "offer": {
+        "date": "2026-09-21",
+        "start": "18:00",
+        "end": "22:00"
+      },
+      "message": "9月21日 18:00〜22:00の代打をお願いできますか。受諾後も店長の承認が必要です。",
+      "channel": "dryrun",
+      "delivered": false,
+      "notification": {
+        "channel": "dryrun",
+        "delivered": false
+      },
+      "apiCalled": true,
+      "requestedModel": "orcarouter/auto",
+      "actualModel": "sample-model",
+      "requestId": "sample-round-2",
+      "tokens": {
+        "prompt": 500,
+        "completion": 200,
+        "total": 700
+      },
+      "estimatedCostUsd": 0.0001,
+      "costSource": "sample_only",
+      "durationMs": 3000
+    }
+  ],
+  "totalTokens": {
+    "prompt": 1500,
+    "completion": 600,
+    "total": 2100
+  },
+  "totalEstimatedCostUsd": 0.0003,
+  "totalDurationMs": 9200,
+  "currency": "USD",
+  "error": null
+}
