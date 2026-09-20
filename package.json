@@ -1,12 +1,15 @@
 {
   "name": "ai-hack-2026",
   "private": true,
-  "description": "AI HACK 2026 第2回の提出記事をQiitaへ投稿するための設定",
+  "description": "AI HACK 2026 シフト代打候補のAI選定と提出記事",
   "scripts": {
+    "select": "node --env-file-if-exists=.env src/cli.mjs",
+    "test": "node --test",
     "article:preview": "qiita preview",
     "article:new": "qiita new",
     "article:publish": "qiita publish --all"
   },
+  "engines": { "node": ">=22.22.1" },
   "devDependencies": {
     "@qiita/qiita-cli": "^1.10.0"
   }
