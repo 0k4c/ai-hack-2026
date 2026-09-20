@@ -9,7 +9,8 @@
     "article:preview": "qiita preview",
     "article:new": "qiita new",
     "article:publish": "qiita publish --all",
-    "arrange": "node --env-file-if-exists=.env src/cli-arrange.mjs"
+    "arrange": "node --env-file-if-exists=.env src/cli-arrange.mjs",
+    "approve": "node src/cli-approve.mjs"
   },
   "engines": { "node": ">=22.22.1" },
   "devDependencies": {
