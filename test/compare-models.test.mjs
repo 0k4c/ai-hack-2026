@@ -76,6 +76,11 @@ test('不正な解釈も取得した課金情報を保持し、429と欠損を0�
   assert.equal(report.summary[0].estimatedCostUsd.mean, null);
   assert.equal(report.summary[0].estimatedCostUsd.knownCount, 1);
   assert.doesNotMatch(JSON.stringify(report), /secret raw error/);
+  const markdown = comparisonMarkdown(report);
+  assert.match(markdown, /\| HTTP \| エラー分類 \|/);
+  assert.match(markdown, /\| failed \| 429 \| api_error \|/);
+  assert.match(markdown, /invalid_interpretation/);
+  assert.doesNotMatch(markdown, /secret raw error/);
 });
 
 test('認証エラーでは1回で停止し残りを実行しない', async t => {
