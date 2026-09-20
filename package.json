@@ -1,0 +1,13 @@
+{
+  "name": "ai-hack-2026",
+  "private": true,
+  "description": "AI HACK 2026 第2回の提出記事をQiitaへ投稿するための設定",
+  "scripts": {
+    "article:preview": "qiita preview",
+    "article:new": "qiita new",
+    "article:publish": "qiita publish --all"
+  },
+  "devDependencies": {
+    "@qiita/qiita-cli": "^1.10.0"
+  }
+}
