@@ -57,6 +57,25 @@ AIへの共通指示は [AGENTS.md](AGENTS.md) です。Claude Codeは [CLAUDE.m
 
 ## 実行環境
 
-現時点では共同開発の土台のみで、アプリ本体・起動コマンド・テスト・CIはまだありません。技術スタック決定時に、ランタイムのバージョン、依存関係のロックファイル、インストール・起動・テスト手順をこのREADMEに追記します。
+アプリ本体・テストはまだありません。現時点で入っているのは、提出用記事をQiitaへ投稿する仕組みだけです。アプリの技術スタックを決めたら、ランタイムのバージョンと起動・テスト手順をここに追記します。
+
+### 提出記事（Qiita）
+
+記事は `public/` のmarkdownとして書き、mainへマージすると GitHub Actions が自動でQiitaへ投稿します。
+
+- ランタイム: Node.js 22.22.1以上（動作確認: v24.8.0 / npm 11.19.0）
+- 依存関係: `package.json` / `package-lock.json`（`@qiita/qiita-cli`）
+- 記事ファイル: `public/ai-hack-2026-agent.md`
+- ワークフロー: `.github/workflows/publish.yml`（mainへのpush、または手動実行）
+
+```sh
+npm install
+npx qiita login          # 各自のQiitaトークンでログイン（初回のみ）
+npm run article:preview  # http://localhost:8888 でプレビュー
+```
+
+**投稿にはリポジトリのSecretsへ `QIITA_TOKEN` の登録が必要です。** トークンの権限は `read_qiita` と `write_qiita`。
+
+記事のfront matterが `ignorePublish: true` の間は投稿されません。公開の準備ができたら `false` に変えてmainへマージします。
 
 APIキーなどは各自のローカル環境または利用サービスのSecretsへ設定します。必要な変数名と用途だけを `.env.example` に追加してください。

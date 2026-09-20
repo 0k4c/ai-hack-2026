@@ -37,3 +37,6 @@ __pycache__/
 .DS_Store
 Thumbs.db
 *.log
+
+# Qiita CLI local cache
+.remote/
