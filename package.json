@@ -8,7 +8,8 @@
     "test": "node --test",
     "article:preview": "qiita preview",
     "article:new": "qiita new",
-    "article:publish": "qiita publish --all"
+    "article:publish": "qiita publish --all",
+    "arrange": "node --env-file-if-exists=.env src/cli-arrange.mjs"
   },
   "engines": { "node": ">=22.22.1" },
   "devDependencies": {
