@@ -29,6 +29,7 @@
 | なぜ作るか・誰に役立つか | [企画書](docs/proposal.md)（打ち合わせで記入） |
 | 何を作り、何を作らないか | [短い要件定義書](docs/requirements.md)（打ち合わせで記入） |
 | いつまでに何を終えるか | [ロードマップ](docs/roadmap.md)（提出は9/22 15:00） |
+| 提出直前に何を確認するか | [提出直前チェックリスト](docs/submission-checklist.md) |
 | 誰が何をしているか・次の作業 | [進捗管理の使い方](docs/progress.md)とGitHub Issues |
 | 役割・AIへの依頼・共同作業 | [3人での進め方](docs/team-playbook.md) |
 
