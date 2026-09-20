@@ -34,7 +34,7 @@
 公開は取り消せません。**publicにする前に**必ず実行してください。
 
 ```bash
-git log --all -p | grep -nE "sk-orca-[A-Za-z0-9_-]{10,}|ORCAROUTER_API_KEY=.+|QIITA_TOKEN=.+"
+git log --all -p -- . ":(exclude)docs/submission-checklist.md" | grep -nE "sk-orca-[A-Za-z0-9_-]{10,}|ORCAROUTER_API_KEY=.+|QIITA_TOKEN=.+"
 ```
 
 ```bash
@@ -42,6 +42,8 @@ git ls-files | grep -E "^\.env$|credentials|\.pem$|\.key$"
 ```
 
 - [ ] 上の2つとも**何も出ない**
+
+> このチェックリスト自身が検索パターンの文字列を含むため、除外しています。除外を外すと必ず自分自身にマッチします。
 - [ ] `output/` の実行記録がコミットされていない（`.gitignore` 済みのはず）
 - [ ] 従業員データが**架空の6人**だけである
 - [ ] 実在の個人情報を含むサンプルがない
