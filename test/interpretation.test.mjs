@@ -200,7 +200,7 @@ test('希望文に命令が混ざってもデータとして送り、余分な�
 
 test('CLIヘルプ・入力競合・空文・JSONファイルのBOM・キー未設定終了を実行確認', async t => {
   const outputDir = await directory(t);
-  const cli = fileURLToPath(new URL('../src/cli.mjs', import.meta.url));
+  const cli = fileURLToPath(new URL('../src/cli-interpret.mjs', import.meta.url));
   const run = args => spawnSync(process.execPath, [cli, ...args], { encoding: 'utf8', env: { ...process.env, ORCAROUTER_API_KEY: '' } });
   assert.equal(run(['--help']).status, 0);
   assert.equal(run(['--text', '', '--output', outputDir]).status, 1);

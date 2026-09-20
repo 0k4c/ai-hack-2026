@@ -1,9 +1,10 @@
 {
   "name": "ai-hack-2026",
   "private": true,
-  "description": "AI HACK 2026 シフト希望文の解釈と提出記事",
+  "description": "AI HACK 2026 シフト代打候補のAI選定・希望文の解釈と提出記事",
   "scripts": {
-    "interpret": "node --env-file-if-exists=.env src/cli.mjs",
+    "select": "node --env-file-if-exists=.env src/cli.mjs",
+    "interpret": "node --env-file-if-exists=.env src/cli-interpret.mjs",
     "test": "node --test",
     "article:preview": "qiita preview",
     "article:new": "qiita new",

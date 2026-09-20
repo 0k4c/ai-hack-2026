@@ -14,7 +14,7 @@ CLAUDE.local.md
 .worktrees/
 .playwright-cli/
 output/playwright/
-output/interpretations/
+output/selections/
 
 # Dependencies and generated output
 node_modules/
@@ -41,3 +41,4 @@ Thumbs.db
 
 # Qiita CLI local cache
 .remote/
+output/interpretations/

@@ -1,0 +1,8 @@
+[
+  { "id": "e1", "name": "田中", "maxConsecutiveDays": 5, "maxWeeklyHours": 32, "workDayOffsets": [0], "requestedDayOffsets": [] },
+  { "id": "e2", "name": "佐藤", "maxConsecutiveDays": 5, "maxWeeklyHours": 32, "workDayOffsets": [-3, -1], "requestedDayOffsets": [] },
+  { "id": "e3", "name": "鈴木", "maxConsecutiveDays": 5, "maxWeeklyHours": 32, "workDayOffsets": [-4, -2, 1], "requestedDayOffsets": [] },
+  { "id": "e4", "name": "高橋", "maxConsecutiveDays": 5, "maxWeeklyHours": 32, "workDayOffsets": [-5, -4, -3, -2, -1], "requestedDayOffsets": [] },
+  { "id": "e5", "name": "伊藤", "maxConsecutiveDays": 7, "maxWeeklyHours": 32, "workWeekExceptTarget": true, "workDayOffsets": [], "requestedDayOffsets": [] },
+  { "id": "e6", "name": "渡辺", "maxConsecutiveDays": 5, "maxWeeklyHours": 32, "workDayOffsets": [], "requestedDayOffsets": [0] }
+]
