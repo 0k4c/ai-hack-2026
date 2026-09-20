@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>代打手配の記録</title>
+  <link rel="stylesheet" href="/style.css">
+  <script type="module" src="/view.mjs"></script>
+</head>
+<body>
+  <header class="page-header"><a href="/" class="brand">代打手配<span>判断と実行の記録</span></a><span>AI HACK 2026</span></header>
+  <main>
+    <section class="loader" aria-label="記録を開く">
+      <div><label for="records">手配の記録</label><select id="records"><option value="">記録を確認中…</option></select></div>
+      <button id="refresh" type="button">一覧を更新</button>
+      <label class="file-button" for="file">JSONファイルを開く<input id="file" type="file" accept=".json,application/json"></label>
+      <button id="sample" type="button">架空サンプルを見る</button>
+    </section>
+    <p id="notice" role="status" aria-live="polite">記録を読み込んでいます。</p>
+    <div id="report"></div>
+  </main>
+  <footer>架空データのデモです。承認はこのPCに保存します。外部への送信・給与や勤怠システムの更新は行いません。</footer>
+</body>
+</html>
