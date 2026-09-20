@@ -41,3 +41,4 @@ Thumbs.db
 
 # Qiita CLI local cache
 .remote/
+output/interpretations/

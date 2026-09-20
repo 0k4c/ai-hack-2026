@@ -6,7 +6,7 @@
 - 管理者: @0k4c
 - メンバー: @Murakami-1124、@tomoyan2312（2026-09-18に招待を承諾）
 - テーマ: 業務を自律化するAIエージェント（2026-09-19確定）
-- 最初の実装: Node.js CLI。モデル選定はOrcaRouterのOpenAI互換HTTP APIを利用
+- 最初の実装: Node.js CLI。代打候補の選定と希望文の解釈を、OrcaRouterのOpenAI互換HTTP APIで行い、結果をJSONに保存
 
 ## 今日の始め方（9/19）
 
@@ -57,7 +57,20 @@ AIへの共通指示は [AGENTS.md](AGENTS.md) です。Claude Codeは [CLAUDE.m
 
 ## 実行環境
 
-代打候補を1人選び、理由と実行情報をJSONに残すCLIがあります。打診送信・勤務確定・画面・再打診ループは未実装です。
+代打候補を1人選ぶCLIと、希望文を解釈するCLIがあります。打診送信・勤務確定・画面・再打診ループは未実装です。
+
+### 技術スタックの提案と今回の採用範囲
+
+| 用途 | 採用 | 理由 |
+| --- | --- | --- |
+| 実行環境・言語 | Node.js 24系、JavaScript ES Modules | 3人の導入済み環境を使い、コンパイル不要で実行できる |
+| AI連携 | Node.js標準fetch → OrcaRouterのChat Completions API | 今回はAPI呼び出し1回だけなのでSDKやエージェントフレームワークの追加が不要 |
+| 保存 | 1実行1JSONファイル | 元文・解釈・あいまい理由・利用情報をそのまま確認できる |
+| 検証 | node:test、node:assert | 追加パッケージなしで入力・応答・通信失敗・保存を確認できる |
+
+Node.js 22.22.1以上で実行できます（実行確認: v24.8.0 / npm 11.19.0）。今回のCLIとテストに `npm install` は不要です。画面やDBの導入は、その担当タスクが決まった段階で検討します。`public/` は引き続きQiita記事専用とし、実装は `src/`、架空データは `data/` に配置します。
+
+参考: [Node.js fetch](https://nodejs.org/docs/latest-v24.x/api/globals.html#fetch)、[OrcaRouter HTTP API](https://docs.orcarouter.ai/native-formats/openai-compat)。
 
 ### 代打候補の選定
 
@@ -99,6 +112,75 @@ npm test
 テストは通信を模擬して、曜日7通りの絞り込み、境界値、候補外回答、429、タイムアウト、氏名の非送信、JSON保存を確認します。実APIへの接続確認はキーを設定して `npm run select` を実行し、保存されたモデル・トークン・費用を確認してください。lint・buildコマンドは未導入です。
 
 2026-09-20の実接続確認では、9/21の欠員に対してe2が選ばれ、実モデル `z-ai/glm-5.3-flash`、入力254＋出力301＝555トークン、概算0.000094 USD、所要4,456 msがJSONに保存されました。選定理由は追加後の週労働時間がe2は4時間、e3は8時間で、連勤数はともに2日という比較でした。モデル・回答・費用は実行ごとに変わります。
+
+### 希望文の解釈：起動・入力
+
+この実装の作業ブランチを取得し、プロジェクト直下で `.env.example` を `.env` にコピーします（既存の `.env` がある場合は上書きせず利用）。`ORCAROUTER_API_KEY` を自分のキーに設定してください。`ORCAROUTER_MODEL` は任意で、空なら `orcarouter/auto`、Named Routerなら `orcarouter/<名前>` です。
+
+```sh
+# 架空のe1の希望文を1件読み、実APIへ1回リクエストする
+npm run interpret
+
+# 自分で希望文を指定する（氏名ではなくID）
+npm run interpret -- --employee e1 --text "来週の火曜以外、夕方なら入れます。"
+
+# 本人が文を書いた基準日がわかる場合だけ指定する
+npm run interpret -- --employee e1 --text "来週の火曜は18:00から22:00まで入れます。" --reference-date 2026-09-20
+
+# JSONファイルを入力する
+npm run interpret -- --input data/preference.example.json
+
+# APIキーやネット接続なしで自動テスト
+npm test
+```
+
+入力JSONは次の3項目です。`employeeId` は架空の `e1`〜`e6`、`text` は空白だけではない1〜4000文字、`referenceDate` は実在する日付または `null`（省略可）。基準日は実行日ではなく、その希望文を書いた日を指定します。過去の基準日も受理し、過去の文の解釈を再現できます。
+
+```json
+{
+  "employeeId": "e1",
+  "text": "田中です。来週の火曜以外、夕方なら入れます。",
+  "referenceDate": null
+}
+```
+
+`--input` と `--text`/`--employee`/`--reference-date` は併用できません。`--output output/interpretations` で保存先を指定できます。既定の保存先はGit管理対象外です。別の保存先を使う場合も元文を誤ってコミットしないでください。
+
+このPCの専用worktreeから、既に設定されたリポジトリ直下のキーを使う場合は `node --env-file=../../.env src/cli-interpret.mjs` で実行できます。キーのコピーは不要です。
+
+### 解釈と記録
+
+`src/preferences.mjs` のプロンプトをOrcaRouterへ渡し、AIが `interpretation.summary`（要約）、`interpretation.preferences`（勤務可否・日付・終日か・時刻）、`ambiguities`（入力中の該当箇所・項目・あいまい理由）を返します。日付・時刻が特定できない場合は `null` にし、理由を必須にします。基準日のない「来週」は実行日で補いません。基準日がある場合は次の月曜〜日曜、日本時間として解釈します。「夕方」を勝手に18時などに置き換えないよう指示します。
+
+コードは日付・時刻の形式、入力中に引用が存在すること、未確定値に対応する理由、余分なキーを検証します。`requiresClarification` はあいまい理由の有無からコードで計算します。**解釈成功はシフト確定を意味しません。** 意味の取り違えやあいまい箇所の見落としをすべて検出できる保証はなく、AIの解釈は確認対象です。
+
+`output/interpretations/<処理ID>.json` に次を保存します。
+
+| フィールド | 内容 |
+| --- | --- |
+| employeeId / originalText / context | 対象ID、元の文（そのまま）、基準日・タイムゾーン |
+| interpretation / ambiguities | 解釈とあいまい箇所・理由。失敗時はnull |
+| requiresClarification | 未確定箇所があればtrue、明確ならfalse、失敗時null |
+| status / error | interpreted、failed、pendingと失敗理由 |
+| requestedModel / actualModel | 要求モデルと実際に応答したモデル |
+| tokens | 入力・出力・合計トークン |
+| estimatedCostUsd / costSource | 応答時点の概算USDと取得元 |
+| requestId / durationMs | OrcaRouter照合用IDと処理時間 |
+
+実モデルは `X-Orca-Fallback-Model` → `X-Orca-Resolved-Model` → 応答本文の順で取得します。router名しか分からない場合は `null`。費用は `X-OrcaRouter-Include-Cost: true` で取得する `usage.cost_usd` です。取得できないモデル・トークン・費用は `null` とし、0円とは扱いません。概算と確定請求額は異なり得ます。参照: [レスポンスヘッダー](https://docs.orcarouter.ai/routing/response-headers)、[費用の取得](https://docs.orcarouter.ai/operations/per-request-cost)。
+
+### 失敗時と制約
+
+- 通信前に `pending` のJSONを作り、結果が出たら一時ファイル経由で置き換えます。中断でpendingが残った場合、自動再実行はせずOrcaRouter側の利用状況を確認してください。
+- API呼び出しは最大1回、タイムアウト60秒、出力上限4,096トークン。自動再試行・聞き返し・送信操作はありません。同じ文を再実行すると別の記録・別のAPI呼び出しになります。
+- 429・通信失敗・不正JSON・出力打ち切り・形式不正は `failed` を保存し、終了コード1。失敗でも取得済みのモデル・トークン・費用は保持します。入力エラーはAPIも記録も作らず終了します。
+- モデルからはJSONをプロンプトで要求し、受信後に検証します。モデルごとのJSON応答品質には差があります。Named RouterのFallback設定、確定請求額との照合は未実装・未確認です。
+- `data/employees.json` は架空の6人です。登録済みの氏名は本文中でもIDへ置換して送ります。未登録の名前や他の個人情報を自動検出する仕組みはありません。デモは架空の文だけを使用してください。要件どおり元の文はローカルJSONに残ります。
+- 日跨ぎ勤務は時刻未確定として扱わせます。シフト表の作成・連勤や労働時間の検査は今回の範囲外です。
+
+テストは通信を模擬して実行します。入力、未確定理由の整合性、氏名置換、命令の混入、実モデル・費用、429・タイムアウト、JSON保存、CLIを確認します。lint・buildは未導入です。
+
+2026-09-20に実APIで確認しました。サンプルの「来週の火曜以外、夕方なら」に対し、基準日不明と開始・終了時刻未指定の2点を指摘し、日付・時刻を `null` のまま保存しました。最終版は `z-ai/glm-5.3-flash`、入力762＋出力1,407＝2,169トークン、概算0.000408 USD、13,262 msでした。開発中の出力上限到達1回と調整確認を含む3回の概算合計は0.001402 USDです。実行記録はローカルに保存し、リポジトリには含めていません。回答・モデル・費用は実行ごとに変わります。
 
 ### 提出記事（Qiita）
 
