@@ -2,7 +2,7 @@
 
 1件のIssueを1枚の作業カードとして使います。進捗の正本はGitHubです。**作成・状態更新・優先順位の整理はClaude Codeが担当し、Codexは実装結果を報告します。** 最終的な優先順位は人間が決めます。3人ともリポジトリに参加済みなので、IssueにAssignee（担当者）を設定できます。A・B・Cがそれぞれ誰かは最初の打ち合わせで決まるため、それまでは本文のA・B・Cを使います。
 
-このファイルは運用のひな型です。以下のタスク・状態ラベル・日別マイルストーンはまだGitHubに登録していません。Claude Codeが既存Issueを確認してから重複なく作成します。
+**2026-09-20：状態ラベル（`status:todo` / `status:doing` / `status:blocked`）を作成し、開いているIssueに付けました。** 日別マイルストーンは使っていません。日ごとの到達点は [ロードマップ](roadmap.md) を見てください。
 
 - [タスク一覧](https://github.com/0k4c/ai-hack-2026/issues)
 - [日ごとのまとまり](https://github.com/0k4c/ai-hack-2026/milestones)
