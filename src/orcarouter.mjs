@@ -39,7 +39,11 @@ export async function selectWithOrca({ vacancy, candidates, apiKey, model = 'orc
       }),
     });
     telemetry = responseTelemetry(response, null);
-    if (!response.ok) throw new SelectionError('api_error', `OrcaRouterへの接続に失敗しました（HTTP ${response.status}）。`, telemetry);
+    if (!response.ok) {
+      const error = new SelectionError('api_error', `OrcaRouterへの接続に失敗しました（HTTP ${response.status}）。`, telemetry);
+      error.httpStatus = response.status;
+      throw error;
+    }
     let body;
     try { body = await response.json(); } catch {
       if (signal.aborted) throw signal.reason;
@@ -83,7 +87,11 @@ export async function requestInterpretation({ messages, apiKey, model = 'orcarou
       body: JSON.stringify({ model, stream: false, max_tokens: 4096, messages }),
     });
     telemetry = responseTelemetry(response, null);
-    if (!response.ok) throw new InterpretationError('api_error', `OrcaRouterへの接続に失敗しました（HTTP ${response.status}）。`, telemetry);
+    if (!response.ok) {
+      const error = new InterpretationError('api_error', `OrcaRouterへの接続に失敗しました（HTTP ${response.status}）。`, telemetry);
+      error.httpStatus = response.status;
+      throw error;
+    }
     let body;
     try { body = await response.json(); } catch {
       if (signal.aborted) throw signal.reason;
