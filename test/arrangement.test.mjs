@@ -4,7 +4,7 @@ import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { spawnSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createSeed } from '../src/seed.mjs';
 import { runArrangement } from '../src/run-arrangement.mjs';
 import { createDryRunNotifier } from '../src/notify.mjs';
@@ -39,6 +39,11 @@ test('辞退→次の候補→受諾。選定を含む全usageと各巡を保存
   const api = sequence([selection, decision('declined', 'next_candidate', 'e3'), decision('accepted', 'hold', 'e3')]);
   const { record, path } = await runArrangement({ ...options, fetchImpl: api.fetchImpl });
   assert.equal(api.calls, 3);
+  assert.equal(record.llmCallCount, 3);
+  assert.equal(record.ruleResolvedCount, 4);
+  assert.equal(record.selectionRequest.apiCalled, true);
+  assert.equal(record.ruleResolutions.length, 4);
+  assert.deepEqual(record.ruleResolutions.map(event => event.employeeId), ['e1', 'e4', 'e5', 'e6']);
   assert.equal(record.status, 'filled');
   assert.equal(record.approvalStatus, 'pending');
   assert.equal(record.stopReason, 'awaiting_approval');
@@ -73,6 +78,9 @@ test('AIが4巡目の再打診を要求しても、コードが3巡で止める'
   assert.equal(record.status, 'escalated');
   assert.equal(record.stopReason, 'round_limit');
   assert.equal(record.rounds[2].action.type, 'retry');
+  assert.equal(record.llmCallCount, 4);
+  assert.equal(record.ruleResolvedCount, 5);
+  assert.deepEqual(record.ruleResolutions.at(-1), { type: 'rule_stop', reason: 'round_limit' });
 });
 
 test('途中抜けの条件付き返答→時間を絞って再打診→一部受諾は店長へ回す', async t => {
@@ -87,6 +95,7 @@ test('途中抜けの条件付き返答→時間を絞って再打診→一部�
   assert.equal(record.approvalStatus, 'pending');
   assert.equal(record.rounds[0].interpretation.kind, 'conditional');
   assert.equal(record.provisionalAssignment.end, '20:00');
+  assert.equal(record.ruleResolvedCount, 5);
 });
 
 test('返事の命令はデータ扱い。確定操作を拒否し、全APIリクエストで氏名をマスクする', async t => {
@@ -153,6 +162,8 @@ test('同じ欠員は再実行・同時実行でもAPIと打診を重複させ�
   assert.equal(repeated.duplicate, true);
   assert.deepEqual(repeated.record, completed.record);
   assert.equal(api.calls, 2);
+  assert.equal(repeated.record.llmCallCount, 2);
+  assert.equal(repeated.record.ruleResolvedCount, 4);
 });
 
 test('候補ゼロ・返事なし・AIのエスカレーションで止まる', async t => {
@@ -162,12 +173,18 @@ test('候補ゼロ・返事なし・AIのエスカレーションで止まる', 
   assert.equal(none.record.stopReason, 'no_candidates');
   assert.equal(none.record.status, 'escalated');
   assert.equal(none.record.totalEstimatedCostUsd, 0);
+  assert.equal(none.record.llmCallCount, 0);
+  assert.equal(none.record.ruleResolvedCount, 7); // Six excluded people + one stop, irrespective of reason count.
+  assert.deepEqual(none.record.ruleResolutions[0].reasons, ['absent_employee', 'requested_day_off', 'shift_overlap']);
   const missing = await runArrangement({ ...await setup(t, { replies: [] }), fetchImpl: sequence([selection]).fetchImpl });
   assert.equal(missing.record.stopReason, 'missing_reply');
   assert.equal(missing.record.rounds[0].apiCalled, false);
+  assert.equal(missing.record.llmCallCount, 1);
+  assert.equal(missing.record.ruleResolvedCount, 5);
   const escalation = await runArrangement({ ...await setup(t), fetchImpl: sequence([selection, decision('conditional', 'escalate', null, null, null)]).fetchImpl });
   assert.equal(escalation.record.status, 'escalated');
   assert.equal(escalation.record.stopReason, 'ai_escalation');
+  assert.equal(escalation.record.ruleResolvedCount, 4); // AI's choice is not a rule-only decision.
 });
 
 test('メトリクスの欠損は全巡の合計でもnullを保持する', async t => {
@@ -200,6 +217,9 @@ for (const [name, code, failure] of [
     let calls = 0;
     const { record, path } = await runArrangement({ ...options, timeoutMs: 5, fetchImpl: async (...args) => calls++ ? failure(...args) : response(selection) });
     assert.equal(calls, 2);
+    assert.equal(record.llmCallCount, 2);
+    assert.equal(record.ruleResolvedCount, 4);
+    assert.equal(record.rounds[0].apiCalled, true);
     assert.equal(record.status, 'failed');
     assert.equal(record.error.code, code);
     if (name === '429') assert.equal(record.error.httpStatus, 429);
@@ -266,11 +286,11 @@ test('氏名のID置換用名簿と制約用シードのid/nameが一致する',
 test('CLIの通常起動で辞退→受諾を最後まで通し、再実行時はAPIを呼ばない（通信モック）', async t => {
   const options = await setup(t);
   const cli = fileURLToPath(new URL('../src/cli-arrange.mjs', import.meta.url));
-  const preload = join(options.outputDir, 'mock-api.mjs');
+  const preload = join(options.outputDir, 'mock # api.mjs');
   const results = [selection, decision('declined', 'next_candidate', 'e3'), decision('accepted', 'hold', 'e3')].map(completion);
   await writeFile(preload, `const results = ${JSON.stringify(results)};\nglobalThis.fetch = async () => { if (!results.length) throw new Error('Unexpected call'); return new Response(JSON.stringify(results.shift())); };\n`);
   const output = join(options.outputDir, 'records');
-  const args = ['--import', preload, cli, '--date', '2099-09-21', '--output', output];
+  const args = ['--import', pathToFileURL(preload).href, cli, '--date', '2099-09-21', '--output', output];
   const env = { ...process.env, ORCAROUTER_API_KEY: 'test-only-secret', ORCAROUTER_MODEL: 'test-model' };
   const first = spawnSync(process.execPath, args, { encoding: 'utf8', env });
   assert.equal(first.status, 0, first.stderr);
@@ -296,4 +316,26 @@ test('候補の残りがなくなった返事は店長へ回し、打診済み�
   assert.equal(record.status, 'escalated');
   assert.equal(record.rounds.length, 2);
   assert.equal(api.calls, 3);
+});
+
+test('設定不足ではHTTP呼び出し回数を増やさず、初回の失敗した通信は1回に数える', async t => {
+  const options = await setup(t, { apiKey: '' });
+  const { record } = await runArrangement({ ...options, fetchImpl: () => assert.fail('キー未設定で通信しない') });
+  assert.equal(record.status, 'failed');
+  assert.equal(record.error.code, 'configuration_error');
+  assert.equal(record.llmCallCount, 0);
+  assert.equal(record.ruleResolvedCount, 4);
+  assert.equal(record.selectionRequest.apiCalled, false);
+  assert.equal(record.selectionRequest.costSource, 'not_called');
+  assert.deepEqual(record.totalTokens, { prompt: 0, completion: 0, total: 0 });
+  assert.equal(record.totalEstimatedCostUsd, 0);
+  let attempts = 0;
+  const failed = await runArrangement({ ...await setup(t), fetchImpl: async () => {
+    attempts++;
+    return new Response('secret body', { status: 429 });
+  } });
+  assert.equal(attempts, 1);
+  assert.equal(failed.record.llmCallCount, 1);
+  assert.equal(failed.record.selectionRequest.apiCalled, true);
+  assert.equal(failed.record.totalEstimatedCostUsd, null);
 });

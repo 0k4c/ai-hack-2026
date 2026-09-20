@@ -7,7 +7,7 @@ import { requestInterpretation, selectWithOrca, InterpretationError, SelectionEr
 import { createDryRunNotifier, validateReplies } from './notify.mjs';
 
 const MAX_ROUNDS = 3;
-const metadata = model => ({ requestedModel: model, actualModel: null, requestId: null,
+const metadata = model => ({ apiCalled: false, requestedModel: model, actualModel: null, requestId: null,
   tokens: { prompt: null, completion: null, total: null }, estimatedCostUsd: null, costSource: 'not_called', durationMs: 0 });
 const keys = (value, names) => value && !Array.isArray(value) && typeof value === 'object' &&
   Object.keys(value).sort().join(',') === names.split(',').sort().join(',');
@@ -62,9 +62,13 @@ export async function runArrangement({ employees, vacancy: input, replies, outpu
   const started = Date.now();
   const processId = createHash('sha256').update(JSON.stringify(vacancy)).digest('hex');
   const path = resolve(join(outputDir, `${processId}.json`));
+  // Count one exclusion per employee, not one per reason or repeated constraint check.
+  const ruleResolutions = filtering.evaluations.filter(employee => !employee.eligible)
+    .map(({ employeeId, reasons }) => ({ type: 'candidate_excluded', employeeId, reasons }));
   const record = { schemaVersion: 1, processId, createdAt: new Date().toISOString(), dataSource: 'synthetic_seed',
     vacancy, filtering, status: 'pending', stopReason: null, approvalStatus: 'not_requested', provisionalAssignment: null,
     limits: { maxRounds: MAX_ROUNDS, maxDurationMs, timeoutMs }, selection: null, selectionRequest: null,
+    llmCallCount: 0, ruleResolvedCount: ruleResolutions.length, ruleResolutions,
     rounds: [], totalTokens: { prompt: 0, completion: 0, total: 0 }, totalEstimatedCostUsd: 0,
     totalDurationMs: 0, currency: 'USD', error: null };
   await mkdir(outputDir, { recursive: true });
@@ -80,7 +84,8 @@ export async function runArrangement({ employees, vacancy: input, replies, outpu
   }
   try { await file.writeFile(`${JSON.stringify(record, null, 2)}\n`); } finally { await file.close(); }
   const save = async () => {
-    const calls = [record.selectionRequest, ...record.rounds.filter(round => round.apiCalled)].filter(Boolean);
+    const calls = [record.selectionRequest, ...record.rounds].filter(call => call?.apiCalled);
+    record.ruleResolvedCount = record.ruleResolutions.length;
     for (const key of ['prompt', 'completion', 'total']) record.totalTokens[key] = sum(calls.map(call => call.tokens[key]));
     record.totalEstimatedCostUsd = sum(calls.map(call => call.estimatedCostUsd));
     record.totalDurationMs = Date.now() - started;
@@ -88,12 +93,24 @@ export async function runArrangement({ employees, vacancy: input, replies, outpu
     await writeFile(temporary, `${JSON.stringify(record, null, 2)}\n`, { flag: 'wx', mode: 0o600 });
     await rename(temporary, path);
   };
-  const escalate = reason => { record.status = 'escalated'; record.stopReason = reason; };
+  const escalate = reason => {
+    record.status = 'escalated';
+    record.stopReason = reason;
+    // AI escalation is an AI decision; only business-rule stops enter this count.
+    if (reason !== 'ai_escalation') record.ruleResolutions.push({ type: 'rule_stop', reason });
+  };
   const remainingTime = () => maxDurationMs - (Date.now() - started);
   const notifier = createDryRunNotifier(replies);
   const attempted = new Set();
   let activeCall = null;
   let callStarted;
+  // Count HTTP attempts at the transport boundary, after client-side configuration validation.
+  // 429/network/timeout attempts count; configuration errors and duplicate runs do not.
+  const trackedFetch = (...args) => {
+    activeCall.apiCalled = true;
+    record.llmCallCount++;
+    return (fetchImpl ?? fetch)(...args);
+  };
   try {
     if (!filtering.candidates.length) escalate('no_candidates');
     else {
@@ -105,8 +122,8 @@ export async function runArrangement({ employees, vacancy: input, replies, outpu
         await save();
         if (remainingTime() <= 0) escalate('time_limit');
         else {
-          const selected = await selectWithOrca({ vacancy, candidates: filtering.candidates, apiKey, model, fetchImpl,
-            timeoutMs: Math.min(timeoutMs, remainingTime()) });
+          const selected = await selectWithOrca({ vacancy, candidates: filtering.candidates, apiKey, model, fetchImpl: trackedFetch,
+            timeoutMs: Math.max(1, Math.min(timeoutMs, remainingTime())) });
           Object.assign(activeCall, selected.telemetry, { durationMs: Date.now() - callStarted });
           record.selection = selected.selection;
           activeCall = null;
@@ -135,12 +152,11 @@ export async function runArrangement({ employees, vacancy: input, replies, outpu
             await save();
             if (remainingTime() <= 0) { escalate('time_limit'); break; }
             activeCall = round;
-            round.apiCalled = true;
             callStarted = Date.now();
             await save();
             if (remainingTime() <= 0) { escalate('time_limit'); break; }
-            const { result, telemetry } = await requestInterpretation({ apiKey, model, fetchImpl,
-              timeoutMs: Math.min(timeoutMs, remainingTime()), messages: [
+            const { result, telemetry } = await requestInterpretation({ apiKey, model, fetchImpl: trackedFetch,
+              timeoutMs: Math.max(1, Math.min(timeoutMs, remainingTime())), messages: [
                 { role: 'system', content: SYSTEM_PROMPT },
                 { role: 'user', content: redactNames(JSON.stringify({ vacancy, current, reply: reply.text,
                   remainingCandidates: remaining, remainingRounds: MAX_ROUNDS - index - 1 })) },
@@ -172,7 +188,7 @@ export async function runArrangement({ employees, vacancy: input, replies, outpu
   } catch (error) {
     if (!(error instanceof InterpretationError) && !(error instanceof SelectionError)) throw error;
     if (activeCall) Object.assign(activeCall,
-      { costSource: activeCall.costSource === 'not_called' ? 'unavailable' : activeCall.costSource },
+      { costSource: activeCall.apiCalled && activeCall.costSource === 'not_called' ? 'unavailable' : activeCall.costSource },
       error.telemetry, { durationMs: Date.now() - callStarted });
     record.status = 'failed';
     record.error = { code: error.code, httpStatus: error.httpStatus ?? null, message: error.message };
