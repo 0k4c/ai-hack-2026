@@ -20,6 +20,7 @@ const staticFiles = new Map([
   ['/', ['index.html', 'text/html']], ['/workforce', ['workforce.html', 'text/html']],
   ['/workforce.mjs', ['workforce.mjs', 'text/javascript']], ['/workforce.css', ['workforce.css', 'text/css']], ['/style.css', ['style.css', 'text/css']],
   ['/view.mjs', ['view.mjs', 'text/javascript']], ['/render.mjs', ['render.mjs', 'text/javascript']],
+  ['/read-response.mjs', ['read-response.mjs', 'text/javascript']],
   ['/labels.mjs', ['labels.mjs', 'text/javascript']],
   ['/sample-arrangement.json', ['sample-arrangement.json', 'application/json']],
 ]);

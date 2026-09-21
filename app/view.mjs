@@ -1,3 +1,4 @@
+import { readResponse } from './read-response.mjs';
 import { renderRecord } from './render.mjs';
 import { recordLabel } from './labels.mjs';
 
@@ -15,8 +16,7 @@ function message(value, error = false) {
 
 async function json(url) {
   const response = await fetch(url, { cache: 'no-store' });
-  if (!response.ok) throw new Error('記録を取得できません。一覧を更新するか、保存した記録ファイルを開いてください。');
-  return response.json();
+  return readResponse(response);
 }
 
 async function openRecord(load, label, sample = false, savedName = null) {
