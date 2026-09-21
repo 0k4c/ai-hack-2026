@@ -29,7 +29,7 @@ test('手配の実装が保存したJSONをHTTP経由で取得し画面へ表示
     action: { type, employeeId: id, start, end, reason: '勤務条件を確認しました。' },
   });
   const cases = [
-    { name: '辞退から受諾', responses: [selection, decision('declined', 'next_candidate', 'e3'), decision('accepted', 'hold', 'e3')], status: 'filled', expected: ['2巡目 / 最大3巡', '店長の承認待ち', '次の候補へ打診', '未送信（dryrun）', '$0.000300'] },
+    { name: '辞退から受諾', responses: [selection, decision('declined', 'next_candidate', 'e3'), decision('accepted', 'hold', 'e3')], status: 'filled', expected: ['2巡目 / 最大3巡', '店長の承認待ち', '次の候補へ打診', '未送信（デモ）', '$0.000300'] },
     { name: '3巡停止', responses: [selection, decision('conditional', 'retry', 'e2', '18:00', '20:00'), decision('conditional', 'retry', 'e2', '19:00', '20:00'), decision('conditional', 'retry', 'e2', '19:00', '21:00')], status: 'escalated', expected: ['3巡目 / 最大3巡', '打診回数の上限', '条件付き'] },
     { name: '利用情報欠損', responses: [selection, decision('accepted', 'hold')], status: 'filled', noUsage: true, expected: ['トークン <strong>不明', '概算USD <strong>不明'] },
     { name: 'API失敗', responses: [selection], status: 'failed', fail: true, expected: ['処理に失敗', 'HTTP 429'] },
@@ -62,7 +62,7 @@ test('手配の実装が保存したJSONをHTTP経由で取得し画面へ表示
     const html = renderRecord(record);
     for (const expected of fixture.expected) assert.ok(html.includes(expected), expected);
     assert.ok(html.includes('disabled'));
-    assert.ok(html.includes('weekly_hours_limit'));
+    assert.ok(html.includes('週の労働時間上限を超過'));
     assert.equal(html.includes('確定済み'), false);
     const review = await (await fetch(base + '/api/review/' + files[0])).json();
     assert.equal(review.canApprove, fixture.status === 'filled');
