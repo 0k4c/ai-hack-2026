@@ -15,7 +15,7 @@ export async function createDemoRecord({ date, outputDir }) {
     { employeeId: 'e3', text: '18時から22時まで、全部入れます。' },
   ];
   const responses = [
-    { employeeId: 'e2', reason: '【通信モック】追加後の週時間が4時間で、鈴木の8時間より少ないため佐藤を選びます。' },
+    { employeeId: 'e2', reason: '【通信モック】勤務条件の判定を通過した佐藤を、固定応答による撮影例として選びます。' },
     { interpretation: { kind: 'declined', summary: '【通信モック】佐藤は提示日の勤務を辞退しています。' },
       action: { type: 'next_candidate', employeeId: 'e3', start: '18:00', end: '22:00', reason: '【通信モック】佐藤が辞退したため、勤務条件を満たす鈴木へ打診します。' } },
     { interpretation: { kind: 'accepted', summary: '【通信モック】鈴木は提示された全時間帯を受諾しています。' },
