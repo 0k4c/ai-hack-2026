@@ -14,7 +14,7 @@ test('契約v1の全巡・除外理由・初回と合計計測を表示し、勤
   const value = clone();
   value.rounds.reverse();
   const html = renderRecord(value, { sample:true });
-  for (const expected of ['1巡目 / 最大3巡','2巡目 / 最大3巡','次の候補へ打診','店長の承認待ち','未送信（dryrun）','weekly_hours_limit','consecutive_days_limit','希望休','既存勤務と重複','sample-model','2,100','$0.000300','架空サンプル','disabled','閲覧のみ']) assert.ok(html.includes(expected), expected);
+  for (const expected of ['1巡目 / 最大3巡','2巡目 / 最大3巡','次の候補へ打診','店長の承認待ち','未送信（デモ）','週の労働時間上限を超過','連勤上限を超過','希望休','既存勤務と重複','sample-model','2,100','$0.000300','架空サンプル','disabled','閲覧のみ']) assert.ok(html.includes(expected), expected);
   assert.ok(html.indexOf('1巡目') < html.indexOf('2巡目'));
   assert.equal(html.includes('確定済み'), false);
 });
@@ -120,5 +120,5 @@ test('記録ディレクトリがまだ存在しない場合は空一覧を返�
   const server = createViewServer({ recordsDir:join(directory,'missing') });
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   t.after(() => new Promise(resolve => { server.close(resolve); server.closeAllConnections(); }));
-  assert.deepEqual(await (await fetch(`http://127.0.0.1:${server.address().port}/api/arrangements`)).json(),{files:[]});
+  assert.deepEqual(await (await fetch(`http://127.0.0.1:${server.address().port}/api/arrangements`)).json(),{files:[],records:[]});
 });
