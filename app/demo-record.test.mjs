@@ -1,0 +1,30 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtemp, rm, readFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
+import { createDemoRecord } from './create-demo-record.mjs';
+import { inspectArrangement, approveArrangement } from '../src/approve-arrangement.mjs';
+
+test('通信モックの実手配記録を承認でき、未知の費用を捏造せず再生成もしない', async t => {
+  const root = await mkdtemp(join(tmpdir(), 'demo-record-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const outputDir = join(root, 'records');
+  const result = await createDemoRecord({ date: '2099-09-21', outputDir });
+  assert.equal(result.mockCalls, 3);
+  assert.equal(result.record.status, 'filled');
+  assert.equal(result.record.totalTokens.total, null);
+  assert.equal(result.record.totalEstimatedCostUsd, null);
+  assert.deepEqual(result.record.rounds.map(r => r.interpretation.kind), ['declined', 'accepted']);
+  assert.ok(result.record.rounds.every(r => !r.delivered && r.action.reason.includes('通信モック')));
+  const options = { recordsDir: outputDir, processId: result.record.processId };
+  const review = await inspectArrangement(options);
+  assert.equal(review.canApprove, true);
+  await approveArrangement({ ...options, expectedRecordHash: review.recordHash });
+  const before = await readFile(result.path, 'utf8');
+  const repeated = await createDemoRecord({ date: '2099-09-21', outputDir });
+  assert.equal(repeated.mockCalls, 0);
+  assert.equal(repeated.duplicate, true);
+  assert.equal(await readFile(result.path, 'utf8'), before);
+  assert.equal((await inspectArrangement(options)).approval.status, 'approved');
+});
