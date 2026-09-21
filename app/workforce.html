@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>勤務管理</title><link rel="stylesheet" href="/workforce.css"><script type="module" src="/workforce.mjs"></script></head>
+<body><header><a href="/workforce" class="brand">勤務管理</a><a href="/">欠勤対応を見る</a></header>
+<main><p class="mode">管理者用・このPCのデモ <span id="organization"></span></p><h1>予定から、働いた時間と給与まで。</h1>
+<p>勤務表で予定を確認し、実際の勤怠を承認して給与明細を作ります。</p>
+<nav aria-label="勤務管理"><a href="#shifts">勤務表</a><a href="#attendance">勤怠</a><a href="#payroll">給与</a></nav>
+<p id="notice" role="status" aria-live="polite">読み込み中です。</p><button type="button" id="refresh">最新の内容を読み込む</button>
+<section id="shifts"><h2>勤務表</h2><p>確定した勤務予定です。予定だけでは給与に計上しません。</p><div id="shift-table"></div>
+<details><summary>勤務予定を追加する</summary><form id="shift-form"><label>メンバー<select name="employeeId" required></select></label><label>勤務日<input name="date" type="date" required></label><label>開始<input name="start" type="time" required></label><label>終了<input name="end" type="time" required></label><button>勤務予定を保存</button></form></details>
+<details><summary>承認した欠勤対応を勤務表に取り込む</summary><form id="import-form"><label>承認済みの記録<select name="processId" required><option value="">記録を選択</option></select></label><button>勤務表に取り込む</button></form><p>取り込み済みの記録と重複する勤務は追加しません。</p></details></section>
+<section id="attendance"><h2>勤怠</h2><p>実際の開始・終了と休憩時間を入力してください。入力後、内容と時給を確認して承認します。日本時間・同日内の勤務に対応しています。</p>
+<form id="attendance-form"><label>メンバー<select name="employeeId" required></select></label><label>勤務日<input name="date" type="date" required></label><label>出勤<input name="start" type="time" required></label><label>退勤<input name="end" type="time" required></label><label>休憩（分）<input name="breakMinutes" type="number" min="0" step="1" value="0" required></label><button>勤怠を提出</button></form><div id="attendance-table"></div></section>
+<section id="payroll"><h2>給与</h2><p>承認済み勤怠の実働時間 × 承認時点の時給で基本給を集計します。月ごとに合計し、1円未満は切り上げます。</p><p class="note">基本給の集計・明細の初期版です。残業・深夜・休日の割増、手当、税金・社会保険の控除は含みません。振込額ではありません。</p>
+<details open><summary>メンバーの時給</summary><div id="rates"></div><form id="rate-form"><label>メンバー<select name="employeeId" required></select></label><label>時給（円）<input name="hourlyRate" type="number" min="1" max="100000" step="1" required></label><button>時給を保存</button></form><p>変更後に承認する勤怠から使います。承認済み勤怠の時給を直す場合は、明細作成前に承認を取り消してから再承認してください。</p></details>
+<form id="preview-form"><label>メンバー<select name="employeeId" required></select></label><label>対象月<input name="month" type="month" required></label><button>給与を集計する</button></form><div id="preview"></div><h3>作成済みの給与明細</h3><p>明細を作成したメンバー・月の勤怠は固定されます。保存した明細は印刷してPDFにできます。</p><div id="payslips"></div></section>
+</main><footer>架空のメンバーで試すローカル版です。オンラインでの本人確認・共有保存は今後対応します。</footer></body></html>
