@@ -1,4 +1,5 @@
 import { renderRecord } from './render.mjs';
+import { recordLabel } from './labels.mjs';
 
 const report = document.querySelector('#report');
 const notice = document.querySelector('#notice');
@@ -14,7 +15,7 @@ function message(value, error = false) {
 
 async function json(url) {
   const response = await fetch(url, { cache: 'no-store' });
-  if (!response.ok) throw new Error('記録を取得できません。一覧を更新するか、JSONファイルを開いてください。');
+  if (!response.ok) throw new Error('記録を取得できません。一覧を更新するか、保存した記録ファイルを開いてください。');
   return response.json();
 }
 
@@ -30,10 +31,10 @@ async function openRecord(load, label, sample = false, savedName = null) {
     const review = savedName ? payload : null;
     report.innerHTML = renderRecord(record, { sample, review });
     if (savedName) activeReview = { name:savedName, review, generation:current };
-    message(`${label}を表示しています。`);
+    message(`${recordLabel(record)}を表示しています。`);
   } catch (error) {
     if (current !== generation) return;
-    message(error instanceof SyntaxError ? 'JSONを読み取れません。ファイルの形式を確認してください。' : error.message, true);
+    message(error instanceof SyntaxError ? '記録を読み取れません。ファイルの形式を確認してください。' : error.message, true);
   }
 }
 
@@ -44,14 +45,14 @@ async function refresh() {
   message('記録の一覧を読み込んでいます。');
   select.replaceChildren(new Option('記録を選んでください', ''));
   try {
-    const { files } = await json('/api/arrangements');
+    const { files, records } = await json('/api/arrangements');
     if (current !== generation) return;
-    for (const file of files) select.add(new Option(file, file));
+    for (const file of files) select.add(new Option(records?.find(item => item.file === file)?.label ?? '手配記録', file));
     if (files.length) {
       message(`${files.length}件の記録があります。表示する記録を選んでください。`);
     } else {
       message('保存された記録はまだありません。');
-      report.innerHTML = '<section class="empty"><h1>手配の流れを、ここで確認できます。</h1><p>手配を実行して記録を保存するか、JSONファイルを開いてください。</p><p class="muted">架空サンプルで、辞退から次の候補への打診を確認できます。</p></section>';
+      report.innerHTML = '<section class="empty"><h1>手配の流れを、ここで確認できます。</h1><p>手配を実行して記録を保存するか、保存した記録ファイルを開いてください。</p><p class="muted">架空サンプルで、辞退から次の候補への打診を確認できます。</p></section>';
     }
   } catch (error) {
     if (current === generation) message(error.message, true);
@@ -82,7 +83,7 @@ report.addEventListener('click', async event => {
     active.review = result;
     report.innerHTML = renderRecord(result.record, { review:result });
     document.querySelector('#approval-message').textContent = '承認を保存しました。';
-    message(`${active.name}の承認を保存しました。`);
+    message(`${recordLabel(result.record)}の承認を保存しました。`);
   } catch (error) {
     if (active.generation !== generation) return;
     feedback.textContent = `${error.message} 記録を開き直して状態を確認してください。`;

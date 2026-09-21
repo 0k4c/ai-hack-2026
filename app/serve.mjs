@@ -1,3 +1,4 @@
+import { recordLabel } from './labels.mjs';
 import { createServer } from 'node:http';
 import { readFile, readdir, realpath, stat } from 'node:fs/promises';
 import { dirname, resolve, sep } from 'node:path';
@@ -17,6 +18,7 @@ const maxSize = 2 * 1024 * 1024;
 const staticFiles = new Map([
   ['/', ['index.html', 'text/html']], ['/style.css', ['style.css', 'text/css']],
   ['/view.mjs', ['view.mjs', 'text/javascript']], ['/render.mjs', ['render.mjs', 'text/javascript']],
+  ['/labels.mjs', ['labels.mjs', 'text/javascript']],
   ['/sample-arrangement.json', ['sample-arrangement.json', 'application/json']],
 ]);
 
@@ -85,7 +87,11 @@ export function createViewServer({ recordsDir = defaultRecords } = {}) {
         try { entries = await readdir(recordsDir, { withFileTypes: true }); }
         catch (error) { if (error.code !== 'ENOENT') throw error; entries = []; }
         const files = entries.filter(entry => entry.isFile() && filenamePattern.test(entry.name)).map(entry => entry.name).sort();
-        send(200, JSON.stringify({ files })); return;
+        const records = await Promise.all(files.map(async file => {
+          try { return { file, label: recordLabel(await loadRecord(file)) }; }
+          catch { return { file, label: '内容を確認できない記録' }; }
+        }));
+        send(200, JSON.stringify({ files, records })); return;
       }
       if (url.pathname.startsWith('/api/arrangements/')) {
         const name = decodeURIComponent(url.pathname.slice('/api/arrangements/'.length));
