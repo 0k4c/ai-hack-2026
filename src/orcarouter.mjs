@@ -8,6 +8,29 @@ export class SelectionError extends Error {
 
 const count = value => Number.isSafeInteger(value) && value >= 0 ? value : null;
 
+// Preserve syntax for diagnosis, never response words, names, addresses or credentials.
+// This is not the original body and must not be used to reconstruct an AI decision.
+function responseDiagnostics(body) {
+  const choice = body?.choices?.[0];
+  if (!choice) return null;
+  const content = choice.message?.content;
+  let jsonValid = false;
+  if (typeof content === 'string') {
+    try { JSON.parse(content); jsonValid = true; } catch { /* Record format only. */ }
+  }
+  return {
+    finishReason: ['stop', 'length', 'content_filter', 'tool_calls', 'function_call'].includes(choice.finish_reason) ? choice.finish_reason : 'unknown',
+    contentType: typeof content === 'string' ? 'string' : 'missing_or_nonstring',
+    contentLength: typeof content === 'string' ? content.length : null,
+    jsonValid,
+    refused: Boolean(choice.message?.refusal),
+    hasToolCalls: Boolean(choice.message?.tool_calls?.length),
+    // Successful JSON needs no excerpt. Keep a bounded, fully masked structural excerpt otherwise.
+    contentShape: typeof content === 'string' && !jsonValid ? content.slice(0, 2000).replace(/[^\s{}\[\]:,"`]/gu, 'x') : null,
+    truncated: typeof content === 'string' && !jsonValid && content.length > 2000,
+  };
+}
+
 export function responseTelemetry(response, body) {
   const model = response.headers.get('x-orca-fallback-model') || response.headers.get('x-orca-resolved-model') || body?.model;
   const actualModel = typeof model === 'string' && model.trim() && !model.startsWith('orcarouter/') ? model : null;
@@ -18,6 +41,7 @@ export function responseTelemetry(response, body) {
     requestId: response.headers.get('x-orca-request-id'), actualModel,
     tokens: { prompt: count(usage?.prompt_tokens), completion: count(usage?.completion_tokens), total: count(usage?.total_tokens) },
     estimatedCostUsd, costSource: estimatedCostUsd === null ? 'unavailable' : 'orcarouter_inline_usage',
+    responseDiagnostics: responseDiagnostics(body),
   };
 }
 
