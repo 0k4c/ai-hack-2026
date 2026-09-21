@@ -1,3 +1,4 @@
+import { createWorkforceStore, WorkforceError, payrollPreview } from '../src/workforce.mjs';
 import { recordLabel } from './labels.mjs';
 import { createServer } from 'node:http';
 import { readFile, readdir, realpath, stat } from 'node:fs/promises';
@@ -16,7 +17,8 @@ const defaultRecords = resolve(appDir, '../output/arrangements');
 const filenamePattern = /^[a-zA-Z0-9_-]+\.json$/;
 const maxSize = 2 * 1024 * 1024;
 const staticFiles = new Map([
-  ['/', ['index.html', 'text/html']], ['/style.css', ['style.css', 'text/css']],
+  ['/', ['index.html', 'text/html']], ['/workforce', ['workforce.html', 'text/html']],
+  ['/workforce.mjs', ['workforce.mjs', 'text/javascript']], ['/workforce.css', ['workforce.css', 'text/css']], ['/style.css', ['style.css', 'text/css']],
   ['/view.mjs', ['view.mjs', 'text/javascript']], ['/render.mjs', ['render.mjs', 'text/javascript']],
   ['/labels.mjs', ['labels.mjs', 'text/javascript']],
   ['/sample-arrangement.json', ['sample-arrangement.json', 'application/json']],
@@ -30,7 +32,8 @@ async function recordPath(directory, name) {
   return path;
 }
 
-export function createViewServer({ recordsDir = defaultRecords } = {}) {
+export function createViewServer({ recordsDir = defaultRecords, organization = 'demo' } = {}) {
+  const workforce = createWorkforceStore({ recordsDir, organization });
   const approvalToken = randomBytes(32).toString('hex');
   const loadRecord = async name => {
     const path = await recordPath(recordsDir, name);
@@ -52,6 +55,23 @@ export function createViewServer({ recordsDir = defaultRecords } = {}) {
     }
     try {
       const url = new URL(req.url, 'http://127.0.0.1');
+      if (url.pathname.startsWith('/api/workforce')) {
+        if (req.method === 'GET' && url.pathname === '/api/workforce') {
+          send(200, JSON.stringify(await workforce.read())); return;
+        }
+        if (req.method === 'GET' && url.pathname === '/api/workforce/preview') {
+          send(200, JSON.stringify(payrollPreview(await workforce.read(), url.searchParams.get('employeeId'), url.searchParams.get('month')))); return;
+        }
+        if (req.method !== 'POST' || req.headers.origin !== `http://${req.headers.host}` || req.headers['x-approval-token'] !== approvalToken || req.headers['content-type'] !== 'application/json') {
+          send(403, JSON.stringify({error:'画面を開き直して操作してください。'})); return;
+        }
+        let body = '';
+        for await (const chunk of req) { body += chunk; if (Buffer.byteLength(body) > 4096) throw new HttpError('入力が大きすぎます。', 413); }
+        let input;
+        try { input = JSON.parse(body); } catch { throw new HttpError('入力形式を確認してください。', 400); }
+        if (!input || Object.keys(input).sort().join(',') !== 'input,revision') throw new HttpError('画面を開き直してください。', 400);
+        send(200, JSON.stringify(await workforce.command(url.pathname.slice('/api/workforce/'.length), input.input, input.revision))); return;
+      }
       if (req.method === 'POST' && url.pathname.startsWith('/api/approve/')) {
         if (req.headers.origin !== `http://${req.headers.host}` || req.headers['x-approval-token'] !== approvalToken || req.headers['content-type'] !== 'application/json') {
           send(403, JSON.stringify({ error:'この画面を開き直して承認してください。' })); return;
@@ -103,7 +123,8 @@ export function createViewServer({ recordsDir = defaultRecords } = {}) {
       }
       send(404, '{"error":"not_found"}');
     } catch (error) {
-      if (error instanceof HttpError) send(error.status, JSON.stringify({ error:error.message }));
+      if (error instanceof WorkforceError) send(409, JSON.stringify({ error: error.message }));
+      else if (error instanceof HttpError) send(error.status, JSON.stringify({ error:error.message }));
       else if (error instanceof ApprovalError) send(error.code === 'not_found' ? 404 : 409, JSON.stringify({ error: error.message, code: error.code }));
       else if (['ENOENT', 'ENOTDIR'].includes(error.code) || error.message === 'invalid_path' || error instanceof URIError) send(404, '{"error":"not_found"}');
       else send(500, '{"error":"unreadable_record"}');
@@ -115,8 +136,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
   const args = process.argv.slice(2);
   const options = {};
   for (let i = 0; i < args.length; i += 2) {
-    if (!['--port', '--records'].includes(args[i]) || !args[i+1] || args[i+1].startsWith('--')) {
-      console.error('使い方: node app/serve.mjs [--port 4173] [--records output/arrangements]');
+    if (!['--port', '--records', '--organization'].includes(args[i]) || !args[i+1] || args[i+1].startsWith('--')) {
+      console.error('使い方: node app/serve.mjs [--port 4173] [--records output/arrangements] [--organization demo]');
       process.exit(1);
     }
     options[args[i]] = args[i+1];
@@ -124,7 +145,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
   const port = Number(options['--port'] ?? 4173);
   if (!Number.isInteger(port) || port < 1 || port > 65535) { console.error('ポートは1〜65535の整数で指定してください。'); process.exit(1); }
   const recordsDir = options['--records'] ? resolve(options['--records']) : defaultRecords;
-  const server = createViewServer({ recordsDir });
+  const server = createViewServer({ recordsDir, organization: options['--organization'] ?? 'demo' });
   server.on('error', error => { console.error(`表示サーバーを起動できません (${error.code})。別の --port を指定してください。`); process.exitCode = 1; });
   server.listen(port, '127.0.0.1', () => console.log(`代打手配の記録: http://127.0.0.1:${port}\n記録フォルダ: ${recordsDir}\n承認は記録フォルダ内のapprovalsへ保存 / Ctrl+Cで終了`));
 }
