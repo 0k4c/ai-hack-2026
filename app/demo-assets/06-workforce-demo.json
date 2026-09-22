@@ -1,0 +1,47 @@
+{
+  "source": "実際の勤務管理画面をPlaywright CLIで連続録画。架空の佐藤の勤怠。AI・外部通信・音声なし。",
+  "captureCommit": "20f2156442b3cce7ca33a8875247fa743f4a6e8d",
+  "integrationCommit": "5c168adfacc8bfb1c14ff20a18bc0a70be7b680e",
+  "recordingStartedAt": "2026-09-21T16:00:00.052Z",
+  "sourceDurationSeconds": 4075.8,
+  "edit": {
+    "startSeconds": 3972,
+    "durationSeconds": 100,
+    "note": "操作前の待機と末尾の静止部分のみを除去。画面内の差し替え・中間の切り貼り・速度変更なし。"
+  },
+  "video": {
+    "file": "06-workforce-demo.webm",
+    "sha256": "c0aaeb3d8aeeb6af79308d80ff08b2e301c83e519f42ebb6d373877b0e1ae624",
+    "width": 1280,
+    "height": 900,
+    "fps": 10,
+    "durationSeconds": 100
+  },
+  "pdf": {
+    "file": "07-workforce-payslip.pdf",
+    "sha256": "2ed9f8cb2c0971c7a61cdef369e9eb2a465ec32821b5b5074a7e970088282f04",
+    "pages": 1,
+    "method": "同じ保存済み明細をChromiumのpage.pdf（印刷CSS）で出力。OSの保存ダイアログは未確認。"
+  },
+  "example": {
+    "employee": "佐藤（架空）",
+    "date": "2026-09-21",
+    "start": "09:00",
+    "end": "17:00",
+    "breakMinutes": 60,
+    "workMinutes": 420,
+    "hourlyRate": 1200,
+    "grossYen": 8400
+  },
+  "limitations": "統合前のレビュー版。基本給のみ。割増・手当・控除・振込を含まない。ログイン・共有DB・日跨ぎ・確定後の明細修正は未実装。",
+  "verification": {
+    "nodeTest": {
+      "tests": 131,
+      "passed": 131,
+      "failed": 0,
+      "skipped": 0
+    },
+    "pdf": "1ページをPNGで目視し、氏名・時間・時給・基本給の文字抽出も照合。",
+    "video": "全100秒をデコードして10秒間隔のPNGを抽出。"
+  }
+}
