@@ -176,3 +176,40 @@ test('CLIはキーなしで確認・明示承認・再読込でき、hashなし�
   assert.match((await exec(process.execPath, args, options)).stdout, /already_approved/);
   await assert.rejects(exec(process.execPath, [...args, '--unknown'], options));
 });
+
+for (const first of ['CLI', 'HTTP']) test(`${first}で承認した結果をもう一方でも共有し、二重保存しない`, async t => {
+  const f = await fixture(t);
+  const { createViewServer } = await import('../app/serve.mjs');
+  const server = createViewServer({ recordsDir: f.recordsDir });
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  t.after(() => new Promise(resolve => { server.close(resolve); server.closeAllConnections(); }));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const { approvalToken } = await (await fetch(base + '/api/session')).json();
+  const review = () => fetch(`${base}/api/review/${f.processId}.json`).then(r => r.json());
+  const initial = await review();
+  assert.equal(initial.recordHash, f.expectedRecordHash, 'HTTPも元ファイルの生バイトをハッシュ化する');
+  const webApprove = async () => {
+    const response = await fetch(`${base}/api/approve/${f.processId}.json`, {
+      method: 'POST', headers: { Origin: base, 'Content-Type': 'application/json', 'X-Approval-Token': approvalToken },
+      body: JSON.stringify({ recordHash: initial.recordHash }),
+    });
+    assert.equal(response.status, 200);
+    return response.json();
+  };
+  const cliApprove = () => exec(process.execPath, [cli, '--process', f.processId, '--records', f.recordsDir,
+    '--expected-hash', f.expectedRecordHash, '--confirm']);
+  if (first === 'CLI') {
+    await cliApprove();
+    assert.equal((await review()).canApprove, false);
+    assert.equal((await webApprove()).alreadyApproved, true);
+  } else {
+    await webApprove();
+    assert.match((await cliApprove()).stdout, /保存済み/);
+  }
+  const saved = JSON.parse(await readFile(f.approvalPath, 'utf8'));
+  assert.deepEqual((await review()).approval, saved);
+  assert.deepEqual((await inspectArrangement(f)).approval, saved);
+  assert.deepEqual(await readdir(join(f.recordsDir, 'approvals')), [`${f.processId}.json`]);
+  assert.deepEqual((await readdir(f.recordsDir)).sort(), [`${f.processId}.json`, 'approvals'].sort());
+  assert.deepEqual(await readFile(f.path), f.bytes);
+});

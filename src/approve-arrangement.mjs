@@ -1,10 +1,11 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { open, lstat, mkdir, link, unlink } from 'node:fs/promises';
+import { open, lstat, mkdir, link, unlink, readdir, rmdir } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { createSeed } from './seed.mjs';
 import { filterCandidates, dateNumber } from './constraints.mjs';
 
 const HASH = /^[a-f0-9]{64}$/;
+const today = () => new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Tokyo' }).format(new Date());
 const MAX_BYTES = 2 * 1024 * 1024;
 const object = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 const keys = (value, names) => object(value) && Object.keys(value).sort().join(',') === names.split(',').sort().join(',');
@@ -28,7 +29,7 @@ function paths({ recordsDir = 'output/arrangements', processId }) {
     fail('invalid_input', '保存先と64桁の処理IDを指定してください。');
   }
   const root = resolve(recordsDir);
-  return { source: join(root, `${processId}.json`), directory: join(root, 'approvals'),
+  return { root, legacy: join(root, '_approvals'), source: join(root, `${processId}.json`), directory: join(root, 'approvals'),
     approval: join(root, 'approvals', `${processId}.json`) };
 }
 
@@ -70,7 +71,7 @@ async function approvalDirectory(directory, create = false) {
 }
 
 async function eligible(record, processId) {
-  if (record.schemaVersion !== 1 || record.processId !== processId || record.dataSource !== 'synthetic_seed') return false;
+  if (record.isDisplaySample || record.schemaVersion !== 1 || record.processId !== processId || record.dataSource !== 'synthetic_seed') return false;
   if (record.status !== 'filled' || record.stopReason !== 'awaiting_approval' || record.approvalStatus !== 'pending' || record.error !== null) return false;
   const vacancy = record.vacancy;
   const assignment = record.provisionalAssignment;
@@ -111,46 +112,98 @@ async function savedApproval(locations, processId, recordHash, assignment) {
   return value;
 }
 
+// Never silently ignore receipts produced by the old independent web writer.
+async function rejectLegacy(locations) {
+  if (await approvalDirectory(locations.legacy) && (await readdir(locations.legacy)).length) {
+    fail('legacy_approvals', '旧保存先 _approvals に記録があります。新規承認を止め、既存の承認内容を確認してください。');
+  }
+}
+
+async function eligibleWithApprovals(record, locations) {
+  const employees = await createSeed(record.vacancy.date);
+  if (await approvalDirectory(locations.directory)) {
+    for (const filename of await readdir(locations.directory)) {
+      if (!/^[a-f0-9]{64}\.json$/.test(filename)) continue;
+      const processId = filename.slice(0, -5);
+      // A concurrent writer may publish this receipt after our first read.
+      // Its idempotent result is checked again under the lock.
+      if (processId === record.processId) continue;
+      const other = paths({ recordsDir: locations.root, processId });
+      const source = await readJson(other.source, 'invalid_record');
+      const receipt = await savedApproval(other, processId, source.digest, source.value.provisionalAssignment);
+      if (!receipt || !await eligible(source.value, processId)) fail('invalid_approval', '既存の承認と元記録を照合できません。');
+      const employee = employees.find(value => value.id === receipt.assignment.employeeId);
+      if (!employee) fail('invalid_approval', '既存の承認に不明な従業員が含まれています。');
+      employee.shifts.push({ date: receipt.assignment.date, start: receipt.assignment.start, end: receipt.assignment.end });
+    }
+  }
+  try {
+    return filterCandidates(employees, record.vacancy).candidates.some(candidate => candidate.employeeId === record.provisionalAssignment.employeeId);
+  } catch { fail('invalid_approval', '既存勤務と承認記録を照合できません。勤務条件を確認してください。'); }
+}
+
 export async function inspectArrangement(options = {}) {
   return safe(async () => {
     const locations = paths(options);
+    await rejectLegacy(locations);
     const { value: record, digest: recordHash } = await readJson(locations.source, 'invalid_record');
-    const canApprove = await eligible(record, options.processId);
-    const assignment = canApprove ? record.provisionalAssignment : null;
+    const valid = await eligible(record, options.processId);
+    const assignment = valid ? record.provisionalAssignment : null;
     const approval = await savedApproval(locations, options.processId, recordHash, assignment);
-    return { processId: options.processId, recordHash, canApprove: canApprove && !approval,
+    // Existing receipts remain readable after their work date. Only NEW approvals
+    // are rejected for past dates; do not re-count a receipt against itself.
+    const canApprove = valid && !approval && record.vacancy.date >= today() && await eligibleWithApprovals(record, locations);
+    return { record, processId: options.processId, recordHash, canApprove,
       reason: approval ? 'already_approved' : canApprove ? null : 'not_approvable', assignment, approval };
   });
+}
+
+async function acquireLock(directory) {
+  const lock = join(directory, '.lock');
+  for (let attempt = 0; attempt < 80; attempt++) {
+    try { await mkdir(lock, { mode: 0o700 }); return lock; }
+    catch (error) { if (error.code !== 'EEXIST') throw error; }
+    await new Promise(resolve => setTimeout(resolve, 25));
+  }
+  fail('approval_busy', '別の承認を処理中です。中断したロックが残る場合は稼働中の処理がないことを確認してください。');
 }
 
 export async function approveArrangement(options = {}) {
   return safe(async () => {
     const locations = paths(options);
     if (typeof options.expectedRecordHash !== 'string' || !HASH.test(options.expectedRecordHash)) fail('invalid_input', '表示時に取得した記録ハッシュが必要です。');
-    const state = await inspectArrangement(options);
-    if (state.recordHash !== options.expectedRecordHash) fail('record_changed', '表示後に記録が変更されました。再読込して確認してください。');
-    if (state.approval) return { approval: state.approval, created: false };
-    if (!state.canApprove) fail('not_approvable', '全時間を受諾した承認待ちの手配だけが対象です。');
+    const initial = await inspectArrangement(options);
+    if (initial.recordHash !== options.expectedRecordHash) fail('record_changed', '表示後に記録が変更されました。再読込して確認してください。');
+    if (initial.approval) return { approval: initial.approval, created: false };
+    if (!initial.canApprove) fail('not_approvable', '承認待ち・日付・勤務条件を確認してください。');
     await approvalDirectory(locations.directory, true);
-    const approval = { schemaVersion: 1, status: 'approved', mode: 'local_demo', processId: options.processId,
-      sourceRecordHash: state.recordHash, approvedAt: new Date().toISOString(), assignment: state.assignment };
-    const temporary = join(locations.directory, `.${randomUUID()}.tmp`);
+    const lock = await acquireLock(locations.directory);
     try {
-      const file = await open(temporary, 'wx', 0o600);
-      try { await file.writeFile(JSON.stringify(approval, null, 2) + '\n'); await file.sync(); }
-      finally { await file.close(); }
-      const latest = await readJson(locations.source, 'invalid_record');
-      if (latest.digest !== state.recordHash) fail('record_changed', '保存前に記録が変更されました。再読込して確認してください。');
-      // Publish a complete file without replacement. Unlike rename(), link()
-      // cannot overwrite the winner of a concurrent approval.
-      try { await link(temporary, locations.approval); }
-      catch (error) {
-        if (error.code !== 'EEXIST') throw error;
-        const existing = await savedApproval(locations, options.processId, state.recordHash, state.assignment);
-        if (!existing) fail('storage_error', '同時承認の結果を取得できません。再読込してください。');
-        return { approval: existing, created: false };
-      }
-      return { approval, created: true };
-    } finally { await unlink(temporary).catch(() => {}); }
+      // Serialize ALL assignments, not just a single processId, then recheck
+      // receipts inside the lock so overlapping vacancies cannot both win.
+      const state = await inspectArrangement(options);
+      if (state.recordHash !== options.expectedRecordHash) fail('record_changed', '表示後に記録が変更されました。再読込して確認してください。');
+      if (state.approval) return { approval: state.approval, created: false };
+      if (!state.canApprove) fail('not_approvable', '承認済み勤務を含めると勤務条件を満たしません。');
+      const approval = { schemaVersion: 1, status: 'approved', mode: 'local_demo', processId: options.processId,
+        sourceRecordHash: state.recordHash, approvedAt: new Date().toISOString(), assignment: state.assignment };
+      const temporary = join(locations.directory, `.${randomUUID()}.tmp`);
+      try {
+        const file = await open(temporary, 'wx', 0o600);
+        try { await file.writeFile(JSON.stringify(approval, null, 2) + '\n'); await file.sync(); }
+        finally { await file.close(); }
+        const latest = await readJson(locations.source, 'invalid_record');
+        if (latest.digest !== state.recordHash) fail('record_changed', '保存前に記録が変更されました。再読込して確認してください。');
+        // Keep atomic no-replace publication even while holding the global lock.
+        try { await link(temporary, locations.approval); }
+        catch (error) {
+          if (error.code !== 'EEXIST') throw error;
+          const existing = await savedApproval(locations, options.processId, state.recordHash, state.assignment);
+          if (!existing) fail('storage_error', '同時承認の結果を取得できません。再読込してください。');
+          return { approval: existing, created: false };
+        }
+        return { approval, created: true };
+      } finally { await unlink(temporary).catch(() => {}); }
+    } finally { await rmdir(lock); }
   });
 }

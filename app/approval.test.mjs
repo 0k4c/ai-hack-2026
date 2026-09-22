@@ -1,95 +1,106 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { mkdtemp, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { approveRecord, approvalReason, recordHash, reviewRecord } from './approval.mjs';
+import { approveArrangement, inspectArrangement } from '../src/approve-arrangement.mjs';
 import { createViewServer } from './serve.mjs';
 import { renderRecord } from './render.mjs';
 
+const digest = value => createHash('sha256').update(value).digest('hex');
 const sample = JSON.parse(await readFile(new URL('./sample-arrangement.json', import.meta.url), 'utf8'));
-function fixture(absentEmployeeId = 'e1', employeeId = 'e3') {
+function fixture(absentEmployeeId = 'e1', employeeId = 'e3', date = '2099-09-21', start = '18:00', end = '22:00') {
   const record = structuredClone(sample);
   delete record.isDisplaySample;
-  record.vacancy = { absentEmployeeId, date:'2099-09-21', start:'18:00', end:'22:00' };
-  record.processId = recordHash(record.vacancy);
-  record.provisionalAssignment = { employeeId, date:'2099-09-21', start:'18:00', end:'22:00' };
-  record.rounds.forEach(round => { round.offer.date = '2099-09-21'; });
+  record.vacancy = { absentEmployeeId, date, start, end };
+  record.processId = digest(JSON.stringify(record.vacancy));
+  record.provisionalAssignment = { employeeId, date, start, end };
+  record.rounds.forEach(round => { round.offer = { date, start, end }; });
   record.rounds.at(-1).employeeId = employeeId;
-  record.rounds.at(-1).action.employeeId = employeeId;
+  Object.assign(record.rounds.at(-1).action, { employeeId, start, end });
   return record;
+}
+async function save(recordsDir, record) {
+  const path = join(recordsDir, record.processId + '.json');
+  const bytes = JSON.stringify(record, null, 2) + '\n';
+  await writeFile(path, bytes);
+  return { recordsDir, record, path, processId: record.processId, expectedRecordHash: digest(bytes) };
 }
 async function setup(t, record = fixture()) {
   const recordsDir = await mkdtemp(join(tmpdir(), 'approval-test-'));
-  t.after(() => rm(recordsDir, { recursive:true, force:true }));
-  const path = join(recordsDir, record.processId + '.json');
-  await writeFile(path, JSON.stringify(record));
-  return { recordsDir, record, path, expectedHash:recordHash(record), loadRecord:async () => JSON.parse(await readFile(path, 'utf8')) };
+  t.after(() => rm(recordsDir, { recursive: true, force: true }));
+  return save(recordsDir, record);
 }
 
-test('承認を別JSONへ永続保存し、再読込と二重承認でも同じ記録を返す', async t => {
+test('共通承認を画面表示でき、再読込と再承認で同じ記録を返す', async t => {
   const options = await setup(t);
-  const before = await readFile(options.path, 'utf8');
-  const initial = await reviewRecord(options.record, options.recordsDir);
+  const before = await readFile(options.path);
+  const initial = await inspectArrangement(options);
   assert.equal(initial.canApprove, true);
-  assert.ok(renderRecord(options.record, {review:initial}).includes('id="approve" type="button"  aria'));
-  const saved = await approveRecord(options);
-  assert.equal(saved.approval.status, 'approved');
-  assert.equal(saved.alreadyApproved, false);
-  assert.equal(saved.canApprove, false);
-  const reloaded = await reviewRecord(options.record, options.recordsDir);
+  assert.ok(renderRecord(options.record, { review: initial }).includes('id="approve" type="button"  aria'));
+  const saved = await approveArrangement(options);
+  const reloaded = await inspectArrangement(options);
   assert.deepEqual(reloaded.approval, saved.approval);
-  assert.ok(renderRecord(options.record, {review:reloaded}).includes('承認済み（このPC）'));
-  assert.equal((await approveRecord(options)).alreadyApproved, true);
-  assert.equal(await readFile(options.path, 'utf8'), before);
-  assert.deepEqual(await readdir(join(options.recordsDir, '_approvals')), [options.record.processId + '.json']);
+  assert.ok(renderRecord(options.record, { review: reloaded }).includes('承認済み（このPC）'));
+  assert.equal((await approveArrangement(options)).created, false);
+  assert.deepEqual(await readFile(options.path), before);
 });
 
-test('同時承認でも承認記録は1件だけで、途中の書き込みを上書きしない', async t => {
-  const options = await setup(t);
-  const results = await Promise.allSettled([approveRecord(options), approveRecord(options)]);
-  assert.ok(results.some(result => result.status === 'fulfilled'));
-  assert.equal(results.filter(result => result.status === 'fulfilled' && !result.value.alreadyApproved).length, 1);
-  assert.deepEqual(await readdir(join(options.recordsDir, '_approvals')), [options.record.processId + '.json']);
-  assert.equal((await approveRecord(options)).alreadyApproved, true);
-});
-
-test('表示後の変更、部分受諾、過去日、偽の処理ID、サンプル、失敗記録を拒否する', async t => {
-  const options = await setup(t);
-  await assert.rejects(approveRecord({...options,expectedHash:'0'.repeat(64)}), /更新/);
-  for (const mutate of [
-    record => { record.status = 'failed'; },
-    record => { record.isDisplaySample = true; },
-    record => { record.processId = '0'.repeat(64); },
-    record => { record.provisionalAssignment.end = '20:00'; },
-    record => { record.rounds.at(-1).interpretation.kind = 'conditional'; },
-    record => { record.vacancy.date = '2020-01-01'; record.processId = recordHash(record.vacancy); },
-  ]) {
-    const record = fixture(); mutate(record);
-    assert.ok(approvalReason(record));
-    await assert.rejects(approveRecord({...options,expectedHash:recordHash(record),loadRecord:async () => record}));
+test('過去日・表示サンプルは共通処理で拒否する', async t => {
+  const past = fixture('e1', 'e3', '2020-01-01');
+  const sampleRecord = fixture(); sampleRecord.isDisplaySample = true;
+  for (const record of [past, sampleRecord]) {
+    const options = await setup(t, record);
+    assert.equal((await inspectArrangement(options)).canApprove, false);
+    await assert.rejects(approveArrangement(options), { code: 'not_approvable' });
   }
-  assert.deepEqual(await readdir(join(options.recordsDir, '_approvals')), []);
 });
 
-test('コードで制約を再確認し、同一人物の別欠員への重複勤務を拒否する', async t => {
-  const options = await setup(t);
-  const ineligible = fixture('e1','e4');
-  await assert.rejects(approveRecord({...options,expectedHash:recordHash(ineligible),loadRecord:async () => ineligible}), /勤務条件/);
-  await approveRecord(options);
-  const overlapping = fixture('e2','e3');
-  await assert.rejects(approveRecord({...options,expectedHash:recordHash(overlapping),loadRecord:async () => overlapping}), /勤務条件/);
+test('別の欠員への重複承認を、同時に要求しても1件しか保存しない', async t => {
+  const a = await setup(t);
+  const b = await save(a.recordsDir, fixture('e2', 'e3'));
+  const results = await Promise.allSettled([approveArrangement(a), approveArrangement(b)]);
+  assert.equal(results.filter(result => result.status === 'fulfilled').length, 1);
+  assert.equal(results.filter(result => result.status === 'rejected' && result.reason.code === 'not_approvable').length, 1);
+  assert.equal((await readdir(join(a.recordsDir, 'approvals'))).length, 1);
 });
 
-test('承認後の改変・破損・中断後のロックは自動で承認扱いにしない', async t => {
+test('既存承認を含めて週の労働時間を再判定する', async t => {
+  const a = await setup(t, fixture('e1', 'e3', '2099-09-21', '00:00', '18:00'));
+  await approveArrangement(a);
+  const b = await save(a.recordsDir, fixture('e1', 'e3', '2099-09-22', '00:00', '18:00'));
+  assert.equal((await inspectArrangement(b)).canApprove, false);
+  await assert.rejects(approveArrangement(b), { code: 'not_approvable' });
+});
+
+test('既存承認を含めて連勤を再判定する', async t => {
+  const a = await setup(t, fixture('e1', 'e3', '2099-09-18', '10:00', '11:00'));
+  await approveArrangement(a);
+  const b = await save(a.recordsDir, fixture('e1', 'e3', '2099-09-20', '10:00', '11:00'));
+  await approveArrangement(b);
+  const c = await save(a.recordsDir, fixture('e1', 'e3', '2099-09-21', '10:00', '11:00'));
+  assert.equal((await inspectArrangement(c)).canApprove, false);
+});
+
+test('旧保存先の承認を無視して新しい承認を作らない', async t => {
   const options = await setup(t);
-  await approveRecord(options);
-  const changed = fixture(); changed.selection.reason = 'changed';
-  await assert.rejects(reviewRecord(changed, options.recordsDir), /元の記録/);
-  await writeFile(join(options.recordsDir,'_approvals',options.record.processId+'.json'), '{broken');
-  await assert.rejects(reviewRecord(options.record, options.recordsDir), /壊れて/);
-  await mkdir(join(options.recordsDir,'_approvals','.lock'));
-  await assert.rejects(approveRecord(options), /処理中/);
+  await mkdir(join(options.recordsDir, '_approvals'));
+  await writeFile(join(options.recordsDir, '_approvals', options.processId + '.json'), '{}');
+  await assert.rejects(inspectArrangement(options), { code: 'legacy_approvals' });
+  await assert.rejects(approveArrangement(options), { code: 'legacy_approvals' });
+});
+
+test('中断したロックを自動削除せず、古い承認・破損を拒否する', async t => {
+  const options = await setup(t);
+  await mkdir(join(options.recordsDir, 'approvals'));
+  await mkdir(join(options.recordsDir, 'approvals', '.lock'));
+  await assert.rejects(approveArrangement(options), { code: 'approval_busy' });
+  await rm(join(options.recordsDir, 'approvals', '.lock'), { recursive: true });
+  await approveArrangement(options);
+  const other = await save(options.recordsDir, fixture('e2', 'e3'));
+  await writeFile(join(options.recordsDir, 'approvals', options.processId + '.json'), '{broken');
+  await assert.rejects(inspectArrangement(other), { code: 'invalid_approval' });
 });
 
 test('HTTP承認は同一Origin・セッショントークン・表示時のハッシュを要求する', async t => {
