@@ -2,7 +2,8 @@
 
 2026年9月19日開始のハッカソンに向けた、3人チームの共同開発リポジトリです。
 
-- リポジトリ: https://github.com/0k4c/ai-hack-2026 （現在Private。**提出時はpublic、またはGoogleDriveでソース提出**。判断は [公式条件のまとめ](docs/event-brief.md) を参照）
+- リポジトリ: https://github.com/0k4c/ai-hack-2026 （公開済み。2026-09-22にログインなしで閲覧できることを確認）
+- 記事: [Qiitaの公開記事](https://qiita.com/ryu2002090533/items/4271b69dc53467514e59)。提出前の確認結果と未確認事項は [提出直前チェックリスト](docs/submission-checklist.md) を参照
 - 管理者: @0k4c
 - メンバー: @Murakami-1124、@tomoyan2312（2026-09-18に招待を承諾）
 - テーマ: 業務を自律化するAIエージェント（2026-09-19確定）
